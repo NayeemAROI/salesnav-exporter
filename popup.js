@@ -326,8 +326,9 @@ async function refresh() {
   }
   
   const elapsedEl = document.getElementById('scannerElapsed');
-  if (s.scanGlobalStartedAt && s.scanRunning && s.scanStatus !== 'Ready' && s.scanStatus) {
-    let endMs = s.scanEndedAt || Date.now();
+  if (s.scanGlobalStartedAt && (s.scanRunning || s.scanStatus === 'done') && s.scanStatus !== 'Ready' && s.scanStatus) {
+    // Use scanEndedAt if scan is done, otherwise use current time
+    let endMs = (s.scanStatus === 'done' && s.scanEndedAt) ? s.scanEndedAt : (s.scanEndedAt || Date.now());
     const elapsedSecAll = Math.max(0, Math.floor((endMs - s.scanGlobalStartedAt) / 1000));
     const h = Math.floor(elapsedSecAll / 3600);
     const m = Math.floor((elapsedSecAll % 3600) / 60);
@@ -341,8 +342,8 @@ async function refresh() {
         elapsedEl.textContent = `${sRem}s`;
       }
     }
-  } else {
-    // Reset timer when scan finishes or isn't running
+  } else if (!s.scanGlobalStartedAt || s.scanStatus === 'Ready' || !s.scanStatus) {
+    // Only reset when no scan has been started
     if (elapsedEl) elapsedEl.textContent = '0s';
   }
   
