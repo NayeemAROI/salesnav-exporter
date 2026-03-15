@@ -548,8 +548,8 @@ document.getElementById('startScanner').onclick = async () => {
   }
   
   if (urls.length > 50) {
-      showErrorToast("Deep Scanner is limited to 50 profiles per launch. List truncated.");
-      urls = urls.slice(0, 50);
+      showErrorToast("Limit Exceeded! You can only scan a maximum of 50 profiles at a time.");
+      return;
   }
 
   const minConn = parseInt(document.getElementById('minConnections').value, 10) || 0;
