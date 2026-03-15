@@ -323,11 +323,8 @@ async function refresh() {
   }
   
   const elapsedEl = document.getElementById('scannerElapsed');
-  if (s.scanGlobalStartedAt && s.scanStatus !== 'Ready' && s.scanStatus) {
+  if (s.scanGlobalStartedAt && s.scanRunning && s.scanStatus !== 'Ready' && s.scanStatus) {
     let endMs = s.scanEndedAt || Date.now();
-    if (!s.scanRunning && !s.scanEndedAt) {
-      endMs = Date.now();
-    }
     const elapsedSecAll = Math.max(0, Math.floor((endMs - s.scanGlobalStartedAt) / 1000));
     const elMin = Math.floor(elapsedSecAll / 60);
     const elSec = elapsedSecAll % 60;
@@ -335,6 +332,7 @@ async function refresh() {
       elapsedEl.textContent = `${elMin > 0 ? elMin + 'm ' : ''}${elSec}s`;
     }
   } else {
+    // Reset timer when scan finishes or isn't running
     if (elapsedEl) elapsedEl.textContent = '0s';
   }
   
