@@ -548,7 +548,14 @@ document.getElementById('startScanner').onclick = async () => {
   }
   
   if (urls.length > 50) {
-      showErrorToast("Limit Exceeded! You can only scan a maximum of 50 profiles at a time.");
+      document.getElementById('batchLimitModal').style.display = 'flex';
+      
+      await new Promise((resolve) => {
+          document.getElementById('batchLimitOkayBtn').onclick = () => {
+              document.getElementById('batchLimitModal').style.display = 'none';
+              resolve();
+          };
+      });
       return;
   }
 

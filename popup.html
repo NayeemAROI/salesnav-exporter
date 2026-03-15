@@ -744,6 +744,20 @@
     </div>
   </div>
 
+  <!-- Batch Limit Modal -->
+  <div id="batchLimitModal" style="display:none; position:fixed; inset:0; background:rgba(10,14,24,0.85); z-index:9999; align-items:center; justify-content:center; backdrop-filter:blur(4px); padding:20px;">
+    <div class="card" style="width:100%; max-width:320px; text-align:center; padding:24px 20px; border-color:rgba(239,68,68,0.4); box-shadow:0 12px 32px rgba(239,68,68,0.15);">
+      <span class="material-icons-round" style="color:#ef4444; font-size:48px; margin-bottom:12px;">error_outline</span>
+      <h3 style="color:#fff; font-size:16px; margin:0 0 8px 0; font-weight:700;">Batch Limit Exceeded!</h3>
+      <p style="color:var(--text-secondary); font-size:13px; line-height:1.5; margin:0 0 20px 0;">
+        You can only scan a maximum of <strong>50 profiles</strong> at a time to prevent LinkedIn restrictions.
+      </p>
+      <div style="display:flex; justify-content:center;">
+        <button id="batchLimitOkayBtn" style="width:100%; background:linear-gradient(135deg, #ef4444, #dc2626); border:none; color:#fff; padding:8px 16px; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 0 12px rgba(239,68,68,0.4);">Okay</button>
+      </div>
+    </div>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
