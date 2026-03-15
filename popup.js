@@ -313,7 +313,7 @@ async function refresh() {
     if (etaSec === 0) {
       etaEl.textContent = 'any moment';
     } else if (h > 0) {
-      etaEl.textContent = `${h}h ${m}m ${sRem}s`;
+      etaEl.textContent = `${h}h ${m}m`;
     } else if (m > 0) {
       etaEl.textContent = `${m}m ${sRem}s`;
     } else {
@@ -334,7 +334,7 @@ async function refresh() {
     const sRem = elapsedSecAll % 60;
     if (elapsedEl) {
       if (h > 0) {
-        elapsedEl.textContent = `${h}h ${m}m ${sRem}s`;
+        elapsedEl.textContent = `${h}h ${m}m`;
       } else if (m > 0) {
         elapsedEl.textContent = `${m}m ${sRem}s`;
       } else {
