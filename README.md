@@ -16,6 +16,14 @@
 
 ---
 
+## 📸 Preview
+
+<p align="center">
+  <img src="assets/preview1.png" alt="Scanner Config" width="250"/>
+  <img src="assets/preview2.png" alt="Scanner Progress" width="250"/>
+  <img src="assets/preview3.png" alt="Scanner Controls" width="250"/>
+</p>
+
 ## ✨ Features
 
 ### 📊 1. List Exporter (Sales Navigator)
