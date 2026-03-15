@@ -307,12 +307,15 @@ async function refresh() {
     const totalEstimateSec = qCount * 90;
     const elapsedSec = Math.floor((Date.now() - s.scanStartedAt) / 1000);
     const etaSec = Math.max(0, totalEstimateSec - elapsedSec);
-    const etaMin = Math.floor(etaSec / 60);
-    const etaSecRem = etaSec % 60;
+    const h = Math.floor(etaSec / 3600);
+    const m = Math.floor((etaSec % 3600) / 60);
+    const sRem = etaSec % 60;
     if (etaSec === 0) {
       etaEl.textContent = 'any moment';
-    } else if (etaMin > 0) {
-      etaEl.textContent = `${etaMin}m ${etaSecRem}s`;
+    } else if (h > 0) {
+      etaEl.textContent = `${h}h ${m}m ${sRem}s`;
+    } else if (m > 0) {
+      etaEl.textContent = `${m}m ${sRem}s`;
     } else {
       etaEl.textContent = `${etaSec}s`;
     }
@@ -326,10 +329,17 @@ async function refresh() {
   if (s.scanGlobalStartedAt && s.scanRunning && s.scanStatus !== 'Ready' && s.scanStatus) {
     let endMs = s.scanEndedAt || Date.now();
     const elapsedSecAll = Math.max(0, Math.floor((endMs - s.scanGlobalStartedAt) / 1000));
-    const elMin = Math.floor(elapsedSecAll / 60);
-    const elSec = elapsedSecAll % 60;
+    const h = Math.floor(elapsedSecAll / 3600);
+    const m = Math.floor((elapsedSecAll % 3600) / 60);
+    const sRem = elapsedSecAll % 60;
     if (elapsedEl) {
-      elapsedEl.textContent = `${elMin > 0 ? elMin + 'm ' : ''}${elSec}s`;
+      if (h > 0) {
+        elapsedEl.textContent = `${h}h ${m}m ${sRem}s`;
+      } else if (m > 0) {
+        elapsedEl.textContent = `${m}m ${sRem}s`;
+      } else {
+        elapsedEl.textContent = `${sRem}s`;
+      }
     }
   } else {
     // Reset timer when scan finishes or isn't running
