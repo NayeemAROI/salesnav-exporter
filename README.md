@@ -43,7 +43,7 @@ The generated CSV includes the following rich data points:
 
 > **Note:** Since this extension is not published on the Chrome Web Store, you will need to install it manually using your browser's "Developer Mode". 
 
-1. **Download the code 📂**: Clone or download this repository to your local machine as a folder (e.g., `salesnav-exporter`).
+1. **Download the code 📂**: [Click here to download the extension as a .ZIP file](https://github.com/NayeemAROI/salesnav-exporter/archive/refs/heads/main.zip). Once downloaded, extract/unzip the file into a folder on your computer.
 2. **Open Extensions Page 🌐**: Open your browser and navigate to the extensions page:
    - **Chrome**: `chrome://extensions`
    - **Edge**: `edge://extensions`
