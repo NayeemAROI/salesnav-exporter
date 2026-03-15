@@ -8,6 +8,10 @@
 [![Status](https://img.shields.io/badge/status-Internal_Release-orange.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Chrome%20%7C%20Edge%20%7C%20Brave-lightgrey.svg)]()
 
+<br/>
+
+### 📥 [Download Latest Release (.ZIP)](https://github.com/NayeemAROI/salesnav-exporter/archive/refs/heads/main.zip)
+
 </div>
 
 ---
