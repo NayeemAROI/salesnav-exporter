@@ -719,7 +719,8 @@ async function _scanNextInner() {
       }
 
       if (checkActivity) {
-         const activityTabs = isActivityUrlGiven ? [''] : ['all', 'comments', 'reactions'];
+         // Check in specific explicit order: react > comment > post (shares)
+         const activityTabs = isActivityUrlGiven ? [''] : ['reactions', 'comments', 'shares'];
          
          for (const actTab of activityTabs) {
              let activityUrl = url;
@@ -779,6 +780,20 @@ async function _scanNextInner() {
                  if (ageInMonths <= minMonths) {
                     isRecentEnough = true;
                  }
+             }
+             
+             // Helper: convert string to days for comparison
+             function timeStringToDays(t) {
+                 if (!t || t === 'now') return 0;
+                 const num = parseInt(t) || 0;
+                 const lower = t.toLowerCase();
+                 if (lower.includes('minute')) return 0;
+                 if (lower.includes('hour')) return 0;
+                 if (lower.includes('day')) return num;
+                 if (lower.includes('week')) return num * 7;
+                 if (lower.includes('month')) return num * 30;
+                 if (lower.includes('year')) return num * 365;
+                 return 9999;
              }
              
              // Only update if this tab found MORE RECENT activity than previous tabs
