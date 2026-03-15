@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "SalesNav Exporter (Internal)",
+  "version": "0.4.2",
+  "permissions": ["storage", "downloads", "alarms", "tabs", "activeTab", "scripting", "offscreen", "notifications"],
+  "host_permissions": ["https://www.linkedin.com/sales/*", "https://www.linkedin.com/in/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/sales/search/people*",
+        "https://www.linkedin.com/sales/lists/people*"
+      ],
+      "js": ["content_people.js"]
+    },
+    {
+      "matches": [
+        "https://www.linkedin.com/sales/search/company*",
+        "https://www.linkedin.com/sales/lists/accounts*",
+        "https://www.linkedin.com/sales/lists/companies*"
+      ],
+      "js": ["content_company.js"]
+    },
+    {
+      "matches": [
+        "https://www.linkedin.com/in/*"
+      ],
+      "js": ["content_profile.js"]
+    }
+  ]
+}
