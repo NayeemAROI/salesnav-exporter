@@ -10,6 +10,19 @@
     }
   }
 
+  function cleanCompanyUrl(rawUrl) {
+    try {
+      const u = new URL(rawUrl);
+      const match = u.pathname.match(/\/sales\/company\/(\d+)/);
+      if (match) {
+        return `https://www.linkedin.com/company/${match[1]}`;
+      }
+      return rawUrl;
+    } catch {
+      return rawUrl;
+    }
+  }
+
   function normalizeText(value) {
     return (value || '').replace(/\s+/g, ' ').trim();
   }
@@ -324,7 +337,7 @@
         company_name = normalizeText(companyLink.textContent || '');
       }
 
-      const linkedin_profile_url = absUrl(companyLink.getAttribute('href'));
+      const linkedin_profile_url = cleanCompanyUrl(absUrl(companyLink.getAttribute('href')));
       if (!company_name || !linkedin_profile_url) continue;
 
       const uniqueKey = linkedin_profile_url || company_name;
@@ -332,11 +345,10 @@
       seen.add(uniqueKey);
 
       const lines = getCardLines(card);
-      const company_location = extractCompanyLocation(card, lines);
-      const industry = extractIndustry(card, company_name, company_location, lines);
+      const industry = extractIndustry(card, company_name, '', lines);
       const employees = extractEmployees(card, lines);
 
-      rows.push({ company_name, linkedin_profile_url, industry, company_location, employees });
+      rows.push({ company_name, linkedin_profile_url, industry, employees });
     }
 
     return rows;
