@@ -22,20 +22,22 @@ function escHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-function rowsToCsv(rows) {
+function rowsToCsv(rows, mode) {
   if (!rows || !rows.length) return '';
 
-  const header = [
-    'first_name',
-    'last_name',
-    'full_name',
-    'linkedin_profile_url',
-    'title',
-    'company_name',
-    'industry',
-    'profile_location',
-    'employees'
-  ];
+  const header = mode === 'company'
+    ? ['company_name', 'linkedin_profile_url', 'industry', 'company_location', 'employees']
+    : [
+        'first_name',
+        'last_name',
+        'full_name',
+        'linkedin_profile_url',
+        'title',
+        'company_name',
+        'industry',
+        'profile_location',
+        'employees'
+      ];
 
   const esc = (v) => {
     const s = (v ?? '').toString();
@@ -45,7 +47,7 @@ function rowsToCsv(rows) {
 
   const seenKeys = new Set();
   const dedupedRows = rows.filter((r) => {
-    const key = r.linkedin_profile_url || r.full_name || JSON.stringify(r);
+    const key = r.linkedin_profile_url || r.full_name || r.company_name || JSON.stringify(r);
     if (!key || seenKeys.has(key)) return false;
     seenKeys.add(key);
     return true;
@@ -58,7 +60,7 @@ function rowsToCsv(rows) {
 
 let _previewLimit = 20;
 
-function renderPreview(rows) {
+function renderPreview(rows, mode) {
   const table = document.getElementById('previewTable');
   const body = document.getElementById('previewBody');
   const empty = document.getElementById('previewEmpty');
@@ -68,6 +70,14 @@ function renderPreview(rows) {
 
   count.textContent = (rows || []).length;
   copyBtn.disabled = !rows || rows.length === 0;
+
+  // Dynamically update thead based on mode
+  const thead = table.querySelector('thead');
+  if (thead) {
+    thead.innerHTML = mode === 'company'
+      ? '<tr><th>Company</th><th>Industry</th><th>Location</th><th>Employees</th><th>LinkedIn URL</th></tr>'
+      : '<tr><th>Name</th><th>Title</th><th>Company</th><th>Industry</th><th>Location</th><th>Employees</th></tr>';
+  }
 
   if (!rows || rows.length === 0) {
     body.innerHTML = '';
@@ -81,22 +91,41 @@ function renderPreview(rows) {
   
   table.style.display = 'table';
   empty.style.display = 'none';
-  body.innerHTML = rows
-    .slice(-itemsToRender)
-    .reverse()
-    .map(
-      (r) => `
-    <tr>
-      <td title="${escHtml(r.full_name)}">${escHtml(r.full_name)}</td>
-      <td title="${escHtml(r.title)}">${escHtml(r.title)}</td>
-      <td title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</td>
-      <td title="${escHtml(r.industry)}">${escHtml(r.industry)}</td>
-      <td title="${escHtml(r.profile_location)}">${escHtml(r.profile_location)}</td>
-      <td title="${escHtml(r.employees)}">${escHtml(r.employees)}</td>
-    </tr>
-  `
-    )
-    .join('');
+
+  if (mode === 'company') {
+    body.innerHTML = rows
+      .slice(-itemsToRender)
+      .reverse()
+      .map(
+        (r) => `
+      <tr>
+        <td title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</td>
+        <td title="${escHtml(r.industry)}">${escHtml(r.industry)}</td>
+        <td title="${escHtml(r.company_location)}">${escHtml(r.company_location)}</td>
+        <td title="${escHtml(r.employees)}">${escHtml(r.employees)}</td>
+        <td title="${escHtml(r.linkedin_profile_url)}" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escHtml(r.linkedin_profile_url)}" target="_blank" style="color:var(--neon-blue);text-decoration:none;">Link</a></td>
+      </tr>
+    `
+      )
+      .join('');
+  } else {
+    body.innerHTML = rows
+      .slice(-itemsToRender)
+      .reverse()
+      .map(
+        (r) => `
+      <tr>
+        <td title="${escHtml(r.full_name)}">${escHtml(r.full_name)}</td>
+        <td title="${escHtml(r.title)}">${escHtml(r.title)}</td>
+        <td title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</td>
+        <td title="${escHtml(r.industry)}">${escHtml(r.industry)}</td>
+        <td title="${escHtml(r.profile_location)}">${escHtml(r.profile_location)}</td>
+        <td title="${escHtml(r.employees)}">${escHtml(r.employees)}</td>
+      </tr>
+    `
+      )
+      .join('');
+  }
 
   if (rows.length > _previewLimit && _previewLimit < 100) {
     actionsContainer.style.display = 'block';
@@ -109,7 +138,7 @@ document.getElementById('showMorePreviewBtn').onclick = () => {
   if (_previewLimit < 100) {
     _previewLimit += 20;
     if (_previewLimit > 100) _previewLimit = 100;
-    renderPreview(_lastRows);
+    renderPreview(_lastRows, _lastMode);
   }
 };
 
@@ -179,8 +208,8 @@ document.getElementById('showMoreScannerPreviewBtn').onclick = () => {
   }
 };
 
-async function copyData(rows) {
-  const csv = rowsToCsv(rows);
+async function copyData(rows, mode) {
+  const csv = rowsToCsv(rows, mode);
   if (!csv) return;
 
   try {
@@ -200,6 +229,7 @@ async function copyData(rows) {
 }
 
 let _lastRows = [];
+let _lastMode = 'people';
 let _initialTabSet = false;
 let _dailyCount = 0;
 
@@ -213,6 +243,7 @@ async function refresh() {
   const s = statusRes?.state || {};
   const rows = s.rows || [];
   _lastRows = rows;
+  _lastMode = s.mode || 'people';
 
   if (!_initialTabSet) {
       _initialTabSet = true;
@@ -259,7 +290,7 @@ async function refresh() {
   document.getElementById('downloadNow').disabled = rows.length === 0;
   document.getElementById('downloadJsonBtn').disabled = rows.length === 0;
 
-  renderPreview(rows);
+  renderPreview(rows, s.mode);
 
   // ─── Scanner UI Updates ───
   // Daily remaining counter
@@ -524,7 +555,7 @@ document.getElementById('downloadJsonBtn').onclick = async () => {
 };
 
 document.getElementById('copyBtn').onclick = async () => {
-  await copyData(_lastRows);
+  await copyData(_lastRows, _lastMode);
 };
 
 document.getElementById('reset').onclick = async () => {
