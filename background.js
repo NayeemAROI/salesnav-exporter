@@ -654,7 +654,7 @@ async function _scanNextInner() {
                   break; 
               }
           } catch (e) {
-              await setState({ scanRunning: false, scanStatus: "error: Scanner tab was closed" });
+              await setState({ scanRunning: false, scanStatus: "error: Scanner tab was closed", scanEndedAt: Date.now() });
               return;
           }
       }
@@ -749,7 +749,7 @@ async function _scanNextInner() {
                });
              } catch(e) {
                  // Tab was closed mid-scan
-                 await setState({ scanRunning: false, scanStatus: "error: Scanner tab was closed" });
+                 await setState({ scanRunning: false, scanStatus: "error: Scanner tab was closed", scanEndedAt: Date.now() });
                  return;
              }
 
@@ -927,7 +927,7 @@ async function _scanNextInner() {
       title: 'Deep Profile Scanner',
       message: 'Scanner has finished processing all profiles in the queue.'
     });
-    await setState({ scanRunning: false, scanStatus: "done", scanTabId: null });
+    await setState({ scanRunning: false, scanStatus: "done", scanTabId: null, scanEndedAt: Date.now() });
     return;
   }
 
@@ -1266,7 +1266,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         
         const newIndex = (s.scanIndex || 0) + 1;
         if (newIndex >= (s.scanQueue || []).length) {
-          await setState({ scanRunning: false, scanStatus: 'done', scanIndex: newIndex, scanFailed: failed, scanResults: results });
+          await setState({ scanRunning: false, scanStatus: 'done', scanIndex: newIndex, scanFailed: failed, scanResults: results, scanEndedAt: Date.now() });
         } else {
           await setState({ scanIndex: newIndex, scanStatus: `Skipped to profile ${newIndex + 1}`, scanRunning: true, scanFailed: failed, scanResults: results, scanStartedAt: Date.now() });
           scheduleNextScan();
@@ -1306,7 +1306,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         scanStatus: "Stopped",
         scanQueue: [],
         scanIndex: 0,
-        scanTabId: null
+        scanTabId: null,
+        scanEndedAt: Date.now()
       });
       if (_cancelCurrentScan) _cancelCurrentScan();
       sendResponse({ ok: true });
@@ -1355,9 +1356,350 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // ════ COMPANY SCANNER MESSAGE HANDLERS ═══════════════════
+    // ═══════════════════════════════════════════════════════════
+
+    if (msg.type === "GET_COMP_SCAN_STATUS") {
+      const s = await getState();
+      sendResponse({
+        ok: true,
+        compScanRunning: s.compScanRunning || false,
+        compScanStatus: s.compScanStatus || 'Ready',
+        compScanQueue: s.compScanQueue || [],
+        compScanIndex: s.compScanIndex || 0,
+        compScanResults: s.compScanResults || [],
+        compScanStartedAt: s.compScanStartedAt || null,
+        compScanGlobalStartedAt: s.compScanGlobalStartedAt || null,
+        compScanEndedAt: s.compScanEndedAt || null,
+        compScanTabId: s.compScanTabId || null
+      });
+      return;
+    }
+
+    if (msg.type === "START_COMPANY_SCAN") {
+      const urls = msg.urls || [];
+      if (urls.length === 0) {
+        sendResponse({ ok: false, error: "No URLs provided" });
+        return;
+      }
+      const s = await getState();
+      if (s.compScanRunning) {
+        sendResponse({ ok: false, error: "Company scan already running" });
+        return;
+      }
+      await setState({
+        compScanRunning: true,
+        compScanStatus: 'Starting...',
+        compScanQueue: urls,
+        compScanIndex: 0,
+        compScanResults: [],
+        compScanFailed: [],
+        compScanStartedAt: Date.now(),
+        compScanGlobalStartedAt: Date.now(),
+        compScanEndedAt: null,
+        compScanTabId: null
+      });
+      scheduleNextCompScan();
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (msg.type === "PAUSE_COMPANY_SCAN") {
+      await setState({ compScanRunning: false, compScanStatus: "paused", compScanEndedAt: Date.now() });
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (msg.type === "STOP_COMPANY_SCAN") {
+      await setState({
+        compScanRunning: false,
+        compScanStatus: "Stopped",
+        compScanQueue: [],
+        compScanIndex: 0,
+        compScanTabId: null,
+        compScanEndedAt: Date.now()
+      });
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (msg.type === "RESET_COMPANY_SCAN") {
+      await setState({
+        compScanRunning: false,
+        compScanStatus: "Ready",
+        compScanQueue: [],
+        compScanResults: [],
+        compScanFailed: [],
+        compScanIndex: 0,
+        compScanStartedAt: null,
+        compScanGlobalStartedAt: null,
+        compScanEndedAt: null,
+        compScanTabId: null
+      });
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (msg.type === "RESUME_COMPANY_SCAN") {
+      const s = await getState();
+      if (s.compScanStatus !== 'paused') {
+        sendResponse({ ok: false, error: "Not paused" });
+        return;
+      }
+      await setState({ compScanRunning: true, compScanStatus: 'Resuming...', compScanStartedAt: Date.now() });
+      scheduleNextCompScan();
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (msg.type === "DOWNLOAD_COMPANY_SCAN") {
+      const s = await getState();
+      if (!s.compScanResults || s.compScanResults.length === 0) {
+        sendResponse({ ok: false, error: "No company scan results yet" });
+        return;
+      }
+      try {
+        const id = await downloadCompanyScannerData(s.compScanResults);
+        sendResponse({ ok: true, downloadId: id });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e) });
+      }
+      return;
+    }
+
     sendResponse({ ok: false, error: "Unknown message" });
   })();
 
   return true;
 });
 
+// ═══════════════════════════════════════════════════════════════
+// ════ COMPANY SCANNER CORE LOGIC ═════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+
+let _compStepping = false;
+
+function scheduleNextCompScan() {
+  setTimeout(() => compScanNext(), 500);
+}
+
+async function compScanNext() {
+  if (_compStepping) return;
+  _compStepping = true;
+  try {
+    await _compScanNextInner();
+  } catch (e) {
+    log('Company scan step error:', e);
+  } finally {
+    _compStepping = false;
+  }
+
+  const s = await getState();
+  if (s.compScanRunning && s.compScanIndex < (s.compScanQueue || []).length) {
+    // Random delay 3-8s between companies
+    const delay = 3000 + Math.floor(Math.random() * 5000);
+    setTimeout(() => compScanNext(), delay);
+  }
+}
+
+async function _compScanNextInner() {
+  const state = await getState();
+  if (!state.compScanRunning) return;
+
+  if (state.compScanIndex >= (state.compScanQueue || []).length) {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icon128.png',
+      title: 'Company Scanner',
+      message: 'Company scanner has finished processing all companies.'
+    });
+    await setState({ compScanRunning: false, compScanStatus: "done", compScanTabId: null, compScanEndedAt: Date.now() });
+    return;
+  }
+
+  const url = state.compScanQueue[state.compScanIndex];
+
+  await setState({
+    compScanStatus: `Scanning company ${state.compScanIndex + 1} of ${state.compScanQueue.length}`
+  });
+
+  // 60-second timeout per company
+  const COMP_TIMEOUT_MS = 60000;
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('COMPANY_TIMEOUT')), COMP_TIMEOUT_MS);
+  });
+
+  try {
+    await Promise.race([timeoutPromise, (async () => {
+      // Normalize URL: convert Sales Navigator company URLs to public LinkedIn URLs
+      let companyUrl = url;
+      // Sales Nav format: https://www.linkedin.com/sales/company/12345
+      // Public format: https://www.linkedin.com/company/name/
+      // We'll navigate to whatever they pasted — the content script handles both
+
+      // Ensure it has /about/ suffix to get the details section
+      if (!companyUrl.includes('/about')) {
+        companyUrl = companyUrl.replace(/\/+$/, '') + '/about/';
+      }
+
+      // Get or create tab
+      let scanTab = null;
+      if (state.compScanTabId) {
+        try { scanTab = await chrome.tabs.get(state.compScanTabId); } catch (e) {}
+      }
+
+      if (!scanTab) {
+        scanTab = await chrome.tabs.create({ url: companyUrl, active: false });
+        await setState({ compScanTabId: scanTab.id });
+      } else {
+        await chrome.tabs.update(scanTab.id, { url: companyUrl });
+      }
+
+      const tabId = scanTab.id;
+
+      // Wait for page to load
+      await setState({ compScanStatus: `Loading company ${state.compScanIndex + 1} of ${state.compScanQueue.length}` });
+
+      for (let i = 0; i < 30; i++) { // Max 15 seconds
+        await sleep(500);
+        try {
+          const t = await chrome.tabs.get(tabId);
+          if (t.status === 'complete') break;
+        } catch (e) {
+          await setState({ compScanRunning: false, compScanStatus: "error: Tab closed", compScanEndedAt: Date.now() });
+          return;
+        }
+      }
+
+      // Extra wait for SPA to render
+      await sleep(3000);
+
+      await setState({ compScanStatus: `Extracting company ${state.compScanIndex + 1} of ${state.compScanQueue.length}` });
+
+      // Inject content script
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content_company_profile.js']
+        });
+      } catch(e) {
+        log('Failed to inject company content script:', e);
+      }
+
+      // Extract data
+      let compData = {};
+      try {
+        const res = await sendToTab({ id: tabId }, { type: 'EXTRACT_COMPANY_MAIN' });
+        if (res?.ok && res.data) compData = res.data;
+      } catch (e) {
+        log('Company extraction error:', e);
+      }
+
+      // Build result
+      const newResult = {
+        original_url: url,
+        companyName: compData.companyName || '',
+        website: compData.website || '',
+        industry: compData.industry || '',
+        companySize: compData.companySize || '',
+        headquarters: compData.headquarters || '',
+        founded: compData.founded || '',
+        companyType: compData.companyType || '',
+        description: compData.description || '',
+        specialties: compData.specialties || '',
+        linkedinUrl: compData.linkedinUrl || url,
+        followerCount: compData.followerCount || '',
+        employeesOnLinkedIn: compData.employeesOnLinkedIn || ''
+      };
+
+      // Save result
+      const newState = await getState();
+      if (!newState.compScanRunning) return;
+
+      const results = newState.compScanResults || [];
+      results.push(newResult);
+
+      await setState({
+        compScanResults: results,
+        compScanIndex: newState.compScanIndex + 1,
+        compScanStartedAt: Date.now()
+      });
+
+    })()]);
+
+    clearTimeout(timeoutId);
+
+  } catch (err) {
+    clearTimeout(timeoutId);
+    log('Company scan error for', url, err.message);
+
+    const s = await getState();
+    if (!s.compScanRunning) return;
+
+    const failed = s.compScanFailed || [];
+    failed.push(url);
+
+    const results = s.compScanResults || [];
+    results.push({
+      original_url: url,
+      companyName: 'Error',
+      website: '',
+      industry: '',
+      companySize: '',
+      headquarters: '',
+      founded: '',
+      companyType: '',
+      description: err.message || 'Timeout',
+      specialties: '',
+      linkedinUrl: url,
+      followerCount: '',
+      employeesOnLinkedIn: ''
+    });
+
+    await setState({
+      compScanResults: results,
+      compScanFailed: failed,
+      compScanIndex: (s.compScanIndex || 0) + 1,
+      compScanStartedAt: Date.now()
+    });
+  }
+}
+
+// Download company scanner results as CSV
+async function downloadCompanyScannerData(results) {
+  const headers = ['Company Name', 'Website', 'Industry', 'Company Size', 'Headquarters', 'Founded', 'Type', 'Description', 'Specialties', 'LinkedIn URL', 'Followers', 'Employees on LinkedIn', 'Original URL'];
+
+  const escCsv = (v) => {
+    const s = String(v || '').replace(/"/g, '""');
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+  };
+
+  const lines = [headers.join(',')];
+  for (const r of results) {
+    lines.push([
+      escCsv(r.companyName),
+      escCsv(r.website),
+      escCsv(r.industry),
+      escCsv(r.companySize),
+      escCsv(r.headquarters),
+      escCsv(r.founded),
+      escCsv(r.companyType),
+      escCsv(r.description),
+      escCsv(r.specialties),
+      escCsv(r.linkedinUrl),
+      escCsv(r.followerCount),
+      escCsv(r.employeesOnLinkedIn),
+      escCsv(r.original_url)
+    ].join(','));
+  }
+
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const filename = `company_scan_${new Date().toISOString().split('T')[0]}.csv`;
+
+  const id = await chrome.downloads.download({ url, filename, saveAs: true });
+  return id;
+}

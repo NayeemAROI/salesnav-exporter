@@ -326,9 +326,18 @@ async function refresh() {
   }
   
   const elapsedEl = document.getElementById('scannerElapsed');
-  if (s.scanGlobalStartedAt && (s.scanRunning || s.scanStatus === 'done') && s.scanStatus !== 'Ready' && s.scanStatus) {
-    // Use scanEndedAt if scan is done, otherwise use current time
-    let endMs = (s.scanStatus === 'done' && s.scanEndedAt) ? s.scanEndedAt : (s.scanEndedAt || Date.now());
+  if (s.scanGlobalStartedAt && s.scanStatus && s.scanStatus !== 'Ready') {
+    let endMs;
+    if (s.scanRunning) {
+      // Scan is actively running — use live time
+      endMs = Date.now();
+    } else if (s.scanEndedAt) {
+      // Scan finished — freeze at the recorded end time
+      endMs = s.scanEndedAt;
+    } else {
+      // Fallback: scan stopped but no endedAt was saved — freeze at now and stop updating
+      endMs = Date.now();
+    }
     const elapsedSecAll = Math.max(0, Math.floor((endMs - s.scanGlobalStartedAt) / 1000));
     const h = Math.floor(elapsedSecAll / 3600);
     const m = Math.floor((elapsedSecAll % 3600) / 60);
@@ -342,8 +351,7 @@ async function refresh() {
         elapsedEl.textContent = `${sRem}s`;
       }
     }
-  } else if (!s.scanGlobalStartedAt || s.scanStatus === 'Ready' || !s.scanStatus) {
-    // Only reset when no scan has been started
+  } else {
     if (elapsedEl) elapsedEl.textContent = '0s';
   }
   
@@ -690,5 +698,244 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 document.getElementById('scannerUrls').addEventListener('input', refresh);
 
+// ═══════════════════════════════════════════════════════════════
+// ════ COMPANY SCANNER TAB LOGIC ══════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+
+let compPreviewLimit = 10;
+
+async function refreshCompanyScanner() {
+  let s = {};
+  try {
+    const statusRes = await send({ type: 'GET_COMP_SCAN_STATUS' });
+    if (statusRes?.ok) s = statusRes;
+    else return;
+  } catch(e) { return; }
+
+  // Status text
+  const statusEl = document.getElementById('compScannerStatus');
+  if (statusEl) statusEl.textContent = s.compScanStatus || 'Ready';
+
+  // Status dot
+  const dot = document.getElementById('compScannerStatusDot');
+  if (dot) dot.className = 'status-dot' + (s.compScanRunning ? ' active' : '');
+
+  // Stats
+  const totalInQueue = (s.compScanQueue || []).length;
+  const scannedCount = s.compScanIndex || 0;
+  const queued = Math.max(0, totalInQueue - scannedCount);
+
+  const scannedEl = document.getElementById('compScannedCount');
+  if (scannedEl) scannedEl.textContent = scannedCount;
+
+  const queueEl = document.getElementById('compQueueCount');
+  if (queueEl) queueEl.textContent = queued;
+
+  // Progress bar
+  const pct = totalInQueue > 0 ? Math.min(100, (scannedCount / totalInQueue) * 100) : 0;
+  const progressFill = document.getElementById('compScannerProgressFill');
+  if (progressFill) progressFill.style.width = pct.toFixed(1) + '%';
+
+  const progressPct = document.getElementById('compScannerProgressPercent');
+  if (progressPct) progressPct.textContent = pct.toFixed(1) + '%';
+
+  const progressText = document.getElementById('compScannerProgressText');
+  if (progressText) progressText.textContent = `${scannedCount} / ${totalInQueue}`;
+
+  // ETA
+  const etaEl = document.getElementById('compScannerEta');
+  if (s.compScanRunning && s.compScanStartedAt && totalInQueue > 0) {
+    const qCount = Math.max(0, totalInQueue - scannedCount);
+    const totalEstimateSec = qCount * 30; // ~30s per company (simpler than profiles)
+    const elapsedSec = Math.floor((Date.now() - s.compScanStartedAt) / 1000);
+    const etaSec = Math.max(0, totalEstimateSec - elapsedSec);
+    const h = Math.floor(etaSec / 3600);
+    const m = Math.floor((etaSec % 3600) / 60);
+    const sRem = etaSec % 60;
+    if (etaSec === 0) {
+      etaEl.textContent = 'any moment';
+    } else if (h > 0) {
+      etaEl.textContent = `${h}h ${m}m`;
+    } else if (m > 0) {
+      etaEl.textContent = `${m}m ${sRem}s`;
+    } else {
+      etaEl.textContent = `${etaSec}s`;
+    }
+  } else if (s.compScanStatus === 'done') {
+    etaEl.textContent = 'Done';
+  } else {
+    etaEl.textContent = '\u2014';
+  }
+
+  // Elapsed
+  const elapsedEl = document.getElementById('compScannerElapsed');
+  if (s.compScanGlobalStartedAt && s.compScanStatus && s.compScanStatus !== 'Ready') {
+    let endMs;
+    if (s.compScanRunning) {
+      endMs = Date.now();
+    } else if (s.compScanEndedAt) {
+      endMs = s.compScanEndedAt;
+    } else {
+      endMs = Date.now();
+    }
+    const elapsedSecAll = Math.max(0, Math.floor((endMs - s.compScanGlobalStartedAt) / 1000));
+    const h = Math.floor(elapsedSecAll / 3600);
+    const m = Math.floor((elapsedSecAll % 3600) / 60);
+    const sRem = elapsedSecAll % 60;
+    if (elapsedEl) {
+      if (h > 0) {
+        elapsedEl.textContent = `${h}h ${m}m`;
+      } else if (m > 0) {
+        elapsedEl.textContent = `${m}m ${sRem}s`;
+      } else {
+        elapsedEl.textContent = `${sRem}s`;
+      }
+    }
+  } else {
+    if (elapsedEl) elapsedEl.textContent = '0s';
+  }
+
+  // Preview table
+  const results = s.compScanResults || [];
+  const previewBody = document.getElementById('compScannerPreviewBody');
+  const previewTable = document.getElementById('compScannerPreviewTable');
+  const previewEmpty = document.getElementById('compScannerPreviewEmpty');
+  const previewCount = document.getElementById('compScannerPreviewCount');
+  const previewActions = document.getElementById('compScannerPreviewActions');
+
+  if (previewCount) previewCount.textContent = results.length;
+
+  if (results.length > 0 && previewBody && previewTable) {
+    previewTable.style.display = 'table';
+    if (previewEmpty) previewEmpty.style.display = 'none';
+
+    previewBody.innerHTML = '';
+    const show = results.slice(0, compPreviewLimit);
+    for (const r of show) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.companyName || ''}</td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.website || ''}</td>
+        <td>${r.industry || ''}</td>
+        <td>${r.companySize || ''}</td>
+        <td>${r.headquarters || ''}</td>
+        <td>${r.founded || ''}</td>
+      `;
+      previewBody.appendChild(tr);
+    }
+
+    if (previewActions) {
+      previewActions.style.display = results.length > compPreviewLimit ? 'block' : 'none';
+    }
+  } else {
+    if (previewTable) previewTable.style.display = 'none';
+    if (previewEmpty) previewEmpty.style.display = 'flex';
+    if (previewActions) previewActions.style.display = 'none';
+  }
+
+  // Download button
+  const dlBtn = document.getElementById('downloadCompScanner');
+  if (dlBtn) dlBtn.disabled = results.length === 0;
+}
+
+// Show more preview
+document.getElementById('showMoreCompScannerPreviewBtn')?.addEventListener('click', () => {
+  compPreviewLimit += 10;
+  refreshCompanyScanner();
+});
+
+// Preview toggle
+document.getElementById('compScannerPreviewToggle')?.addEventListener('click', function() {
+  this.classList.toggle('collapsed');
+  document.getElementById('compScannerPreviewContent')?.classList.toggle('collapsed');
+});
+
+// Start Company Scanner
+document.getElementById('startCompScanner').onclick = async function() {
+  const urlsRaw = document.getElementById('compScannerUrls').value.trim();
+  if (!urlsRaw) {
+    showErrorToast('Please paste company URLs first');
+    return;
+  }
+
+  const urls = urlsRaw.split('\n')
+    .map(u => u.trim())
+    .filter(u => u && (u.includes('linkedin.com/company/') || u.includes('linkedin.com/sales/company/')));
+
+  if (urls.length === 0) {
+    showErrorToast('No valid LinkedIn company URLs found');
+    return;
+  }
+
+  if (urls.length > 50) {
+    // Show batch limit modal
+    const modal = document.getElementById('batchLimitModal');
+    if (modal) {
+      modal.style.display = 'flex';
+      await new Promise(resolve => {
+        document.getElementById('batchLimitOkayBtn').onclick = () => {
+          modal.style.display = 'none';
+          resolve();
+        };
+      });
+    }
+    return;
+  }
+
+  const res = await send({ type: 'START_COMPANY_SCAN', urls });
+  if (res && !res.ok && res.error) {
+    showErrorToast(res.error);
+  }
+  await refreshCompanyScanner();
+};
+
+// Pause
+document.getElementById('pauseCompScanner').onclick = async function() {
+  await send({ type: 'PAUSE_COMPANY_SCAN' });
+  await refreshCompanyScanner();
+};
+
+// Stop
+document.getElementById('stopCompScanner').onclick = async function() {
+  await send({ type: 'STOP_COMPANY_SCAN' });
+  await refreshCompanyScanner();
+};
+
+// Reset
+let compResetConfirmTimer;
+document.getElementById('resetCompScanner').onclick = async function() {
+  const btn = this;
+  if (!btn.classList.contains('confirming')) {
+    btn.classList.add('confirming');
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.innerHTML = `<span class="material-icons-round" style="font-size:15px;">warning</span> Confirm Wipe`;
+    btn.style.boxShadow = '0 0 8px var(--neon-red)';
+    compResetConfirmTimer = setTimeout(() => {
+      btn.classList.remove('confirming');
+      btn.innerHTML = btn.dataset.originalHtml;
+      btn.style.boxShadow = '';
+    }, 3000);
+    return;
+  }
+  clearTimeout(compResetConfirmTimer);
+  btn.classList.remove('confirming');
+  btn.innerHTML = btn.dataset.originalHtml;
+  btn.style.boxShadow = '';
+  document.getElementById('compScannerUrls').value = '';
+  await send({ type: 'RESET_COMPANY_SCAN' });
+  await refreshCompanyScanner();
+};
+
+// Download / Export
+document.getElementById('downloadCompScanner').onclick = async function() {
+  const res = await send({ type: 'DOWNLOAD_COMPANY_SCAN' });
+  if (res && !res.ok && res.error) {
+    showErrorToast(res.error);
+  }
+};
+
 refresh();
-setInterval(refresh, 800);
+setInterval(() => {
+  refresh();
+  refreshCompanyScanner();
+}, 800);

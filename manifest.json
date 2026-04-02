@@ -3,7 +3,7 @@
   "name": "SalesNav Exporter (Internal)",
   "version": "0.4.2",
   "permissions": ["storage", "downloads", "alarms", "tabs", "activeTab", "scripting", "offscreen", "notifications"],
-  "host_permissions": ["https://www.linkedin.com/sales/*", "https://www.linkedin.com/in/*"],
+  "host_permissions": ["https://www.linkedin.com/sales/*", "https://www.linkedin.com/in/*", "https://www.linkedin.com/company/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html" },
   "content_scripts": [

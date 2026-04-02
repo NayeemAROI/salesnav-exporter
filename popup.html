@@ -445,6 +445,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="searchScraperTab">Search Scraper</div>
     <div class="tab" data-tab="profileScannerTab">Profile Scanner</div>
+    <div class="tab" data-tab="companyScannerTab">Company Scanner</div>
   </div>
 
   <div id="settingsPanel">
@@ -712,6 +713,107 @@
           <div class="empty-state" id="scannerPreviewEmpty">
             <span class="material-icons-round">table_chart</span>
             No profiles scanned yet
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Company Scanner Tab -->
+  <div class="container tab-content" id="companyScannerTab">
+    <div class="card">
+      <div class="card-header" style="justify-content:space-between; display:flex;">
+        <span>🏢 Deep Company Scanner</span>
+      </div>
+      <div class="card-body" style="padding: 16px;">
+        <div class="field">
+          <label>LinkedIn Company URLs (one per line)</label>
+          <textarea id="compScannerUrls" rows="6" placeholder="https://www.linkedin.com/company/google&#10;https://www.linkedin.com/company/microsoft"></textarea>
+        </div>
+      </div>
+      <div class="actions">
+        <div class="btn-row">
+          <button class="btn-success" id="startCompScanner" style="flex:2">
+            <span class="material-icons-round">play_arrow</span> Start Scanning
+          </button>
+          <button class="btn-amber" id="pauseCompScanner" style="flex:1">
+            <span class="material-icons-round">pause</span> Pause
+          </button>
+          <button class="btn-danger" id="stopCompScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); border-radius:6px; padding:6px 12px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; height:34px;">
+            <span class="material-icons-round">stop</span> Stop
+          </button>
+        </div>
+        <div class="btn-row">
+          <button id="resetCompScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); color:var(--neon-red); font-weight:600;">
+            <span class="material-icons-round">restart_alt</span> Reset
+          </button>
+        </div>
+        <div class="btn-row">
+          <button id="downloadCompScanner" class="btn-primary" disabled style="width:100%">
+            <span class="material-icons-round">download</span> Export Results
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company Scanner Stats -->
+    <div class="card" style="margin-bottom: 12px;">
+       <div class="status-row">
+        <div class="status-dot" id="compScannerStatusDot"></div>
+        <div id="compScannerStatus">Ready</div>
+        <span class="mode-chip" id="compScannerModeBadge">Company</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">check_circle</span> Scanned</div>
+          <div class="stat-value neon-green" id="compScannedCount">0</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">pending</span> Queued</div>
+          <div class="stat-value neon-blue" id="compQueueCount">0</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">schedule</span> ETA</div>
+          <div class="stat-value neon-purple" id="compScannerEta" style="font-size: 16px;">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">timer</span> Elapsed</div>
+          <div class="stat-value text-secondary" id="compScannerElapsed" style="font-size: 16px;">0s</div>
+        </div>
+      </div>
+      <div style="padding: 10px 16px;">
+        <div style="position:relative; height:28px; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
+          <div id="compScannerProgressFill" style="height:100%; background:linear-gradient(90deg, var(--neon-green), var(--neon-blue)); width:0%; border-radius:6px; transition:width 0.4s ease; box-shadow:0 0 12px rgba(0,255,136,0.3);"></div>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px; font-size:12px; font-weight:700; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.5);">
+            <span id="compScannerProgressPercent">0%</span>
+            <span style="opacity:0.6;">·</span>
+            <span id="compScannerProgressText" style="font-weight:500;">0 / 0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company Scanner Preview Card -->
+    <div class="card" id="compScannerPreviewSection">
+      <div class="card-header toggle" id="compScannerPreviewToggle">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span>📊 Company Preview</span>
+          <span class="chip" id="compScannerPreviewCount" style="background:rgba(0,255,136,0.1); color:var(--neon-green); border:1px solid rgba(0,255,136,0.2);">0</span>
+        </div>
+        <span class="material-icons-round chevron">expand_more</span>
+      </div>
+      <div class="collapsible" id="compScannerPreviewContent">
+        <div class="table-wrap">
+          <table id="compScannerPreviewTable" style="display:none;">
+            <thead><tr><th>Name</th><th>Website</th><th>Industry</th><th>Size</th><th>HQ</th><th>Founded</th></tr></thead>
+            <tbody id="compScannerPreviewBody"></tbody>
+          </table>
+          <div style="text-align: center; margin-top: 8px; display: none;" id="compScannerPreviewActions">
+            <button id="showMoreCompScannerPreviewBtn" style="padding: 4px 12px; font-size: 11px; background: rgba(0,255,136,0.1); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.2);">Show More</button>
+          </div>
+          <div class="empty-state" id="compScannerPreviewEmpty">
+            <span class="material-icons-round">table_chart</span>
+            No companies scanned yet
           </div>
         </div>
       </div>
