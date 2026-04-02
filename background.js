@@ -1696,8 +1696,7 @@ async function downloadCompanyScannerData(results) {
   }
 
   const csv = lines.join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
+  const url = `data:text/csv;charset=utf-8,` + encodeURIComponent(csv);
   const filename = `company_scan_${new Date().toISOString().split('T')[0]}.csv`;
 
   const id = await chrome.downloads.download({ url, filename, saveAs: true });
