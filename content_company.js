@@ -223,27 +223,56 @@
 
   async function scrollToLoadAllCards() {
     const container = findScrollableResultsContainer();
-    let stable = 0;
-    let lastCount = 0;
+    const STEP = 400;       // pixels per scroll step
+    const STEP_DELAY = 300; // ms between each scroll step
+    const SETTLE_DELAY = 600;
 
-    for (let i = 0; i < 25; i++) {
+    // Phase 1: Incremental scroll to trigger lazy-loading IntersectionObservers
+    const getScrollHeight = () => container ? container.scrollHeight : document.body.scrollHeight;
+    const getScrollTop = () => container ? container.scrollTop : window.scrollY;
+    const setScrollTop = (v) => {
+      if (container) container.scrollTop = v;
+      else window.scrollTo(0, v);
+    };
+
+    let currentPos = 0;
+    setScrollTop(0);
+    await sleep(200);
+
+    // Scroll down step-by-step
+    for (let i = 0; i < 80; i++) {
+      currentPos += STEP;
+      const maxScroll = getScrollHeight();
+      if (currentPos >= maxScroll) {
+        setScrollTop(maxScroll);
+        await sleep(STEP_DELAY);
+        break;
+      }
+      setScrollTop(currentPos);
+      await sleep(STEP_DELAY);
+    }
+
+    // Phase 2: Wait for any remaining lazy content, then verify stability
+    await sleep(SETTLE_DELAY);
+    let stable = 0;
+    let lastCount = countCompanyCards();
+
+    for (let i = 0; i < 10; i++) {
+      // Scroll to absolute bottom again to catch any new content
+      setScrollTop(getScrollHeight());
+      await sleep(500);
+
       const count = countCompanyCards();
       if (count === lastCount) stable++;
       else stable = 0;
       lastCount = count;
 
-      if (stable >= 3) break;
-
-      if (container) container.scrollTop = container.scrollHeight;
-      else window.scrollTo(0, document.body.scrollHeight);
-
-      await sleep(700);
+      if (stable >= 2) break;
     }
 
-    if (container) container.scrollTop = 0;
-    else window.scrollTo(0, 0);
-
-    await sleep(400);
+    // Reset to top
+    setScrollTop(0);
+    await sleep(300);
   }
 
   /* ═══════════════════════════════════════════════════
