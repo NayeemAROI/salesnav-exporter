@@ -1,0 +1,815 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SalesNav Exporter</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #171412;
+      --bg-card: #231f1b;
+      --bg-card-hover: #2e2924;
+      --surface: #1e1a16;
+      --glass: rgba(255, 245, 240, 0.04);
+      --glass-border: #332e28;
+
+      --text: #faf5f0;
+      --text-dim: #b5a99a;
+      --text-faint: #7a7068;
+
+      --neon-blue: #f97316;
+      --neon-purple: #c084fc;
+      --neon-green: #22c55e;
+      --neon-pink: #fb923c;
+      --neon-amber: #f59e0b;
+      --neon-red: #ef4444;
+
+      --radius: 8px;
+      --radius-sm: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 420px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #332e28; border-radius: 4px; }
+
+    /* ─── AppBar ─── */
+    .app-bar {
+      background: var(--bg);
+      border-bottom: 1px solid var(--glass-border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .logo {
+      width: 32px; height: 32px;
+      background: var(--neon-blue);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 14px; color: #fff;
+    }
+    .brand-text .title {
+      font-weight: 700; font-size: 15px; letter-spacing: -0.3px;
+      color: var(--neon-blue);
+    }
+    .brand-text .subtitle { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+    .header-right { display: flex; align-items: center; gap: 6px; }
+
+    /* Chips */
+    .chip {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;
+    }
+    .chip.running {
+      background: rgba(34, 197, 94, 0.15); color: var(--neon-green);
+      animation: chipPulse 2s infinite;
+    }
+    @keyframes chipPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .chip.stopped { background: rgba(239, 68, 68, 0.12); color: var(--neon-red); }
+
+    .icon-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-dim); width: 34px; height: 34px;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .icon-btn:hover { background: var(--glass); color: var(--neon-blue); }
+    .icon-btn.active { background: rgba(249, 115, 22, 0.1); color: var(--neon-blue); }
+
+    /* ─── Settings ─── */
+    #settingsPanel {
+      display: none; background: var(--bg-card);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 14px 16px;
+    }
+    #settingsPanel.open { display: block; animation: fadeSlide 0.2s ease-out; }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .setting-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 0;
+    }
+    .setting-label { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+    .setting-select {
+      background: var(--surface); border: 1px solid var(--glass-border);
+      border-radius: 6px; padding: 5px 28px 5px 10px;
+      font-family: inherit; font-size: 12px; color: var(--text);
+      cursor: pointer; appearance: none;
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23b5a99a'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+      background-repeat: no-repeat; background-position: right 4px center; background-size: 18px;
+      transition: border-color 0.2s;
+    }
+    .setting-select:focus { outline: none; border-color: var(--neon-blue); }
+
+    /* ─── Container ─── */
+    .container { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* ─── Cards ─── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: #3d3832; }
+    .card-header {
+      padding: 10px 16px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-faint);
+      border-bottom: 1px solid var(--glass-border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .card-body { padding: 16px; }
+
+    /* ─── Status ─── */
+    .status-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text-faint); flex-shrink: 0;
+      transition: all 0.3s;
+    }
+    .status-dot.active {
+      background: var(--neon-green);
+      animation: dotPulse 1.5s infinite;
+    }
+    @keyframes dotPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    #status {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--text-dim);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+    }
+    .mode-chip {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;
+      background: rgba(249, 115, 22, 0.1); color: var(--neon-blue);
+      border: 1px solid rgba(249, 115, 22, 0.2);
+    }
+
+    /* ─── Stats Grid ─── */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .stat-cell {
+      padding: 12px 10px;
+      border-right: 1px solid var(--glass-border);
+      position: relative; overflow: hidden;
+      transition: background 0.2s;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+    .stat-cell:hover { background: var(--glass); }
+    .stat-cell:last-child { border-right: none; }
+    .stat-cell:nth-child(n+5) { border-top: 1px solid var(--glass-border); }
+    .stat-label {
+      font-size: 10px; color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+      display: flex; align-items: center; gap: 5px; margin-bottom: 4px;
+    }
+    .stat-label .material-icons-round { font-size: 14px; }
+    .stat-value {
+      font-size: 18px; font-weight: 800; letter-spacing: -0.2px;
+    }
+    .stat-value.neon-blue { color: var(--neon-blue); }
+    .stat-value.neon-green { color: var(--neon-green); }
+    .stat-value.neon-red { color: var(--neon-red); }
+    .stat-value.neon-purple { color: var(--neon-purple); }
+
+    /* ─── Progress ─── */
+    .progress-section {
+      padding: 12px 16px;
+      border-top: 1px solid var(--glass-border);
+    }
+    .progress-label {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--text-faint); margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+    }
+    .progress-track {
+      height: 4px; background: #2e2924; border-radius: 2px; overflow: hidden;
+      position: relative;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--neon-blue);
+      width: 0%; border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+
+    /* ─── Inputs ─── */
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: block; font-size: 10px; font-weight: 600;
+      color: var(--text-faint); margin-bottom: 5px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .field input, .field textarea {
+      width: 100%; box-sizing: border-box;
+      background: var(--bg); border: 1px solid var(--glass-border);
+      color: var(--text); padding: 10px 12px; border-radius: var(--radius-sm);
+      font-family: 'Inter', sans-serif; font-size: 13px;
+      transition: border-color 0.2s; outline: none; resize: vertical;
+    }
+    .field input:focus, .field textarea:focus {
+      border-color: var(--neon-blue);
+    }
+    .field input::placeholder, .field textarea::placeholder { color: var(--text-faint); }
+
+    /* ─── Tabs ─── */
+    .tabs { display: flex; border-bottom: 1px solid var(--glass-border); padding: 0 16px; background: var(--bg); margin-bottom: 8px;}
+    .tab { padding: 12px 16px; font-size: 13px; font-weight: 500; color: var(--text-faint); cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.2s, border-color 0.2s; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--neon-blue); border-bottom-color: var(--neon-blue); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ─── Buttons ─── */
+    .actions { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .btn-row { display: flex; gap: 8px; }
+
+    button {
+      flex: 1; padding: 9px 14px;
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      border-radius: var(--radius-sm); border: 1px solid var(--glass-border);
+      background: var(--surface); color: var(--text-dim);
+      cursor: pointer; display: inline-flex;
+      align-items: center; justify-content: center; gap: 5px;
+      transition: all 0.15s ease; white-space: nowrap;
+      position: relative; overflow: hidden;
+    }
+    button .material-icons-round { font-size: 16px; }
+    button:hover:not(:disabled) {
+      background: var(--bg-card-hover); border-color: #3d3832;
+      color: var(--text); transform: translateY(-1px);
+    }
+    button:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+    button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* Primary (warm orange) */
+    .btn-primary {
+      background: var(--neon-blue);
+      border-color: var(--neon-blue);
+      color: #fff; font-weight: 700;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: #fb923c;
+      border-color: #fb923c;
+      color: #fff;
+    }
+
+    /* Success (green) */
+    .btn-success {
+      border-color: rgba(34, 197, 94, 0.4); color: var(--neon-green);
+    }
+    .btn-success:hover:not(:disabled) {
+      background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.6);
+    }
+
+    /* Amber */
+    .btn-amber {
+      border-color: rgba(245, 158, 11, 0.4); color: var(--neon-amber);
+    }
+    .btn-amber:hover:not(:disabled) {
+      background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.6);
+    }
+
+    /* Danger */
+    .btn-danger {
+      border: none; background: none; color: var(--neon-red);
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    /* ─── Table ─── */
+    .table-wrap { max-height: 180px; overflow-y: auto; overflow-x: auto; padding-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
+    th {
+      background: var(--bg); color: var(--text-faint); font-weight: 600;
+      text-align: left; padding: 8px 8px; font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--glass-border);
+      position: sticky; top: 0; z-index: 1;
+    }
+    td {
+      padding: 7px 8px; border-bottom: 1px solid var(--glass-border);
+      max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--text-dim);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--glass); color: var(--text); }
+    .empty-state {
+      padding: 30px 16px; text-align: center; color: var(--text-faint); font-size: 12px;
+    }
+    .empty-state .material-icons-round {
+      font-size: 36px; display: block; margin: 0 auto 8px;
+      opacity: 0.3; color: var(--neon-blue);
+    }
+
+    /* ─── Collapsible ─── */
+    .card-header.toggle { cursor: pointer; user-select: none; }
+    .card-header.toggle:hover { background: var(--glass); }
+    .card-header .chevron {
+      transition: transform 0.25s ease; font-size: 18px; color: var(--text-faint);
+    }
+    .card-header.toggle.collapsed .chevron { transform: rotate(-90deg); }
+    .collapsible {
+      max-height: 500px; overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .collapsible.collapsed { max-height: 0; }
+
+    /* ─── History ─── */
+    .history-list { max-height: 110px; overflow-y: auto; }
+    .history-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--glass-border);
+      font-size: 11px; transition: background 0.2s;
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-item:hover { background: var(--glass); }
+    .history-meta { font-size: 10px; color: var(--text-faint); }
+
+    /* ─── Toast ─── */
+    .toast {
+      position: fixed; bottom: 16px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--bg-card);
+      border: 1px solid var(--neon-blue);
+      color: var(--neon-blue); padding: 10px 20px; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 600;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1000;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+    @keyframes resurrectPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- AppBar -->
+  <div class="app-bar">
+    <div class="brand">
+      <div class="logo">SN</div>
+      <div class="brand-text">
+        <div class="title">SalesNav Exporter</div>
+        <div class="subtitle">Fast export · Zero profile views</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="chip stopped" id="runBadge">Stopped</span>
+      <button class="icon-btn" id="settingsToggle" title="Settings">
+        <span class="material-icons-round" style="font-size:20px">tune</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="searchScraperTab">Search Scraper</div>
+    <div class="tab" data-tab="profileScannerTab">Profile Scanner</div>
+    <div class="tab" data-tab="companyScannerTab">Company Scanner</div>
+  </div>
+
+  <div id="settingsPanel">
+    <div class="setting-row">
+      <span class="setting-label">Export format</span>
+      <select id="exportFormat" class="setting-select">
+        <option value="csv" selected>CSV (.csv)</option>
+        <option value="json">JSON (.json)</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Scraping speed</span>
+      <select id="scrollSpeed" class="setting-select">
+        <option value="fast" selected>⚡ Fast</option>
+        <option value="medium">🔄 Medium</option>
+        <option value="safe">🛡️ Safe</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Current Page Only</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="currentPageOnly" />
+        <span class="slider round"></span>
+      </label>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label" style="display:flex; flex-direction:column; gap:2px;">
+        Deep Fetch (Industry)
+        <span style="font-size:9px; color:var(--text-faint); font-weight:normal;">Slower. Hovers over each company.</span>
+      </span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="deepFetchBtn" />
+        <span class="slider round"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="container tab-content active" id="searchScraperTab">
+    <!-- Stats Card -->
+    <div class="card">
+      <div class="status-row">
+        <div class="status-dot" id="statusDot"></div>
+        <div id="status">Ready</div>
+        <span class="mode-chip" id="modeBadge">—</span>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">group</span> Profiles</div>
+          <div class="stat-value neon-blue" id="rowCount">0</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">auto_stories</span> Pages</div>
+          <div class="stat-value neon-purple" id="pageCount">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls Card -->
+    <div class="card">
+      <div class="card-header">
+        <span>🎯 Target & Controls</span>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label>Sales Navigator URL</label>
+          <input type="text" id="url" placeholder="Paste your search URL here..." />
+        </div>
+        <div class="field">
+          <label>Max Profiles</label>
+          <input type="number" id="maxProfiles" min="1" placeholder="Leave empty for all" />
+        </div>
+      </div>
+      <div class="actions">
+        <div class="btn-row">
+          <button class="btn-primary" id="openStart" style="flex:2">
+            <span class="material-icons-round">rocket_launch</span> Open & Start
+          </button>
+          <button class="btn-success" id="start">
+            <span class="material-icons-round">play_arrow</span> Start
+          </button>
+        </div>
+        <div class="btn-row">
+          <button class="btn-amber" id="pause">
+            <span class="material-icons-round">pause</span> Pause
+          </button>
+          <button class="btn-primary" id="downloadFinal" disabled>
+            <span class="material-icons-round">download_done</span> Finish
+          </button>
+        </div>
+        <div class="btn-row">
+          <button id="downloadNow" disabled>
+            <span class="material-icons-round">save_alt</span> Save
+          </button>
+          <button id="downloadJsonBtn" disabled>
+            <span class="material-icons-round">data_object</span> JSON
+          </button>
+          <button id="copyBtn" disabled>
+            <span class="material-icons-round">content_copy</span> Copy
+          </button>
+        </div>
+        <div class="btn-row">
+          <button class="btn-danger" id="reset">
+            <span class="material-icons-round">restart_alt</span> Reset Session
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Card -->
+    <div class="card" id="previewSection">
+      <div class="card-header toggle collapsed" id="previewToggle">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span>📊 Data Preview</span>
+          <span class="chip" id="previewCount" style="background:rgba(249,115,22,0.1); color:var(--neon-blue); border:1px solid rgba(249,115,22,0.2);">0</span>
+        </div>
+        <span class="material-icons-round chevron">expand_more</span>
+      </div>
+      <div class="collapsible collapsed" id="previewContent">
+        <div class="table-wrap">
+          <table id="previewTable" style="display:none;">
+            <thead><tr><th>Name</th><th>Title</th><th>Company</th><th>Industry</th><th>Location</th><th>Employees</th></tr></thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+          <div style="text-align: center; margin-top: 8px; display: none;" id="previewActions">
+            <button id="showMorePreviewBtn" style="padding: 4px 12px; font-size: 11px; background: rgba(249,115,22,0.1); color: var(--neon-blue); border: 1px solid rgba(249,115,22,0.2);">Show More</button>
+          </div>
+          <div class="empty-state" id="previewEmpty">
+            <span class="material-icons-round">table_chart</span>
+            No data collected yet
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Card -->
+    <div class="card">
+      <div class="card-header toggle collapsed" id="historyToggle">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span>📁 Session History</span>
+          <button class="btn-danger" id="clearHistory" style="padding:2px 8px; font-size:10px; border-radius:4px;" onclick="event.stopPropagation()">Clear</button>
+        </div>
+        <span class="material-icons-round chevron">expand_more</span>
+      </div>
+      <div class="collapsible collapsed" id="historyContent">
+        <div class="history-list" id="history"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Scanner Tab -->
+  <div class="container tab-content" id="profileScannerTab">
+    <div class="card">
+      <div class="card-header" style="justify-content:space-between; display:flex;">
+        <span>🔍 Deep Profile Scanner</span>
+        <span id="dailyRemaining" style="background:rgba(192,132,252,0.15); color:var(--neon-purple); padding:2px 6px; border-radius:4px; font-weight:700;">Remaining: --</span>
+      </div>
+      <div class="card-body" style="padding: 16px;">
+        <div class="field">
+          <label>LinkedIn Profile URLs (one per line)</label>
+          <textarea id="scannerUrls" rows="6" placeholder="https://www.linkedin.com/in/johndoe&#10;https://www.linkedin.com/in/janedoe"></textarea>
+        </div>
+        <div class="field">
+          <label>Min. Required Connections</label>
+          <input type="number" id="minConnections" min="0" placeholder="100" value="100" />
+        </div>
+        <div class="field">
+          <label>Activity within X Months</label>
+          <input type="number" id="minActivityMonths" min="1" placeholder="3" title="Only count activity if it occurred within this many months" value="3" />
+        </div>
+      </div>
+      <div class="actions">
+        <div class="btn-row">
+          <button class="btn-success" id="startScanner" style="flex:2">
+            <span class="material-icons-round">play_arrow</span> Start Scanning
+          </button>
+          <button class="btn-amber" id="pauseScanner" style="flex:1">
+            <span class="material-icons-round">pause</span> Pause
+          </button>
+          <button class="btn-danger" id="stopScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); border-radius:6px; padding:6px 12px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; height:34px;">
+            <span class="material-icons-round">stop</span> Stop
+          </button>
+        </div>
+        <div class="btn-row">
+          <button id="resurrectScanner" disabled style="flex:1; border:1px solid rgba(168,85,247,0.4); border-radius:6px; padding:8px 12px; font-weight:700; font-size:11px; display:flex; align-items:center; justify-content:center; gap:4px; color:var(--neon-purple); background:rgba(168,85,247,0.1);">
+            <span class="material-icons-round" style="font-size:15px;">bolt</span> Skip Stuck
+          </button>
+          <button id="retryFailed" disabled style="flex:1; border:1px solid rgba(255,184,0,0.3); color:var(--neon-amber); font-weight:600;">
+            <span class="material-icons-round">replay</span> Retry (<span id="failedCount">0</span>)
+          </button>
+          <button id="resetScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); color:var(--neon-red); font-weight:600;">
+            <span class="material-icons-round">restart_alt</span> Reset
+          </button>
+        </div>
+        <div class="btn-row">
+          <button id="downloadScanner" class="btn-primary" disabled style="width:100%">
+            <span class="material-icons-round">download</span> Export Results
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Scanner Stats -->
+    <div class="card" style="margin-bottom: 12px;">
+       <div class="status-row">
+        <div class="status-dot" id="scannerStatusDot"></div>
+        <div id="scannerStatus">Ready</div>
+        <span class="mode-chip" id="scannerModeBadge">Scanner</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">check_circle</span> Scanned</div>
+          <div class="stat-value neon-green" id="scannedCount">0</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">pending</span> Queued</div>
+          <div class="stat-value neon-blue" id="queueCount">0</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">schedule</span> ETA</div>
+          <div class="stat-value neon-purple" id="scannerEta" style="font-size: 16px;">—</div>
+        </div>
+        <div class="stat-cell" id="scannerElapsedCell">
+          <div class="stat-label"><span class="material-icons-round">timer</span> Elapsed</div>
+          <div class="stat-value text-secondary" id="scannerElapsed" style="font-size: 16px;">0s</div>
+        </div>
+      </div>
+      <div style="padding: 10px 16px;">
+        <div style="position:relative; height:28px; background:#2e2924; border-radius:6px; overflow:hidden;">
+          <div id="scannerProgressFill" style="height:100%; background:var(--neon-blue); width:0%; border-radius:6px; transition:width 0.4s ease; "></div>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px; font-size:12px; font-weight:700; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.5);">
+            <span id="scannerProgressPercent">0%</span>
+            <span style="opacity:0.6;">·</span>
+            <span id="scannerProgressText" style="font-weight:500;">0 / 0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scanner Preview Card -->
+    <div class="card" id="scannerPreviewSection">
+      <div class="card-header toggle" id="scannerPreviewToggle">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span>📊 Scanner Preview</span>
+          <span class="chip" id="scannerPreviewCount" style="background:rgba(249,115,22,0.1); color:var(--neon-blue); border:1px solid rgba(249,115,22,0.2);">0</span>
+        </div>
+        <span class="material-icons-round chevron">expand_more</span>
+      </div>
+      <div class="collapsible" id="scannerPreviewContent">
+        <div class="table-wrap">
+          <table id="scannerPreviewTable" style="display:none;">
+            <thead><tr><th>Name</th><th>Profile URL</th><th>Status</th><th>Premium</th><th>Connections</th><th>Last Activity</th></tr></thead>
+            <tbody id="scannerPreviewBody"></tbody>
+          </table>
+          <div style="text-align: center; margin-top: 8px; display: none;" id="scannerPreviewActions">
+            <button id="showMoreScannerPreviewBtn" style="padding: 4px 12px; font-size: 11px; background: rgba(249,115,22,0.1); color: var(--neon-blue); border: 1px solid rgba(249,115,22,0.2);">Show More</button>
+          </div>
+          <div class="empty-state" id="scannerPreviewEmpty">
+            <span class="material-icons-round">table_chart</span>
+            No profiles scanned yet
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Company Scanner Tab -->
+  <div class="container tab-content" id="companyScannerTab">
+    <div class="card">
+      <div class="card-header" style="justify-content:space-between; display:flex;">
+        <span>🏢 Deep Company Scanner</span>
+      </div>
+      <div class="card-body" style="padding: 16px;">
+        <div class="field">
+          <label>LinkedIn Company URLs (one per line)</label>
+          <textarea id="compScannerUrls" rows="6" placeholder="https://www.linkedin.com/company/google&#10;https://www.linkedin.com/company/microsoft"></textarea>
+        </div>
+      </div>
+      <div class="actions">
+        <div class="btn-row">
+          <button class="btn-success" id="startCompScanner" style="flex:2">
+            <span class="material-icons-round">play_arrow</span> Start Scanning
+          </button>
+          <button class="btn-amber" id="pauseCompScanner" style="flex:1">
+            <span class="material-icons-round">pause</span> Pause
+          </button>
+          <button class="btn-danger" id="stopCompScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); border-radius:6px; padding:6px 12px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; height:34px;">
+            <span class="material-icons-round">stop</span> Stop
+          </button>
+        </div>
+        <div class="btn-row">
+          <button id="resetCompScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); color:var(--neon-red); font-weight:600;">
+            <span class="material-icons-round">restart_alt</span> Reset
+          </button>
+        </div>
+        <div class="btn-row">
+          <button id="downloadCompScanner" class="btn-primary" disabled style="width:100%">
+            <span class="material-icons-round">download</span> Export Results
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company Scanner Stats -->
+    <div class="card" style="margin-bottom: 12px;">
+       <div class="status-row">
+        <div class="status-dot" id="compScannerStatusDot"></div>
+        <div id="compScannerStatus">Ready</div>
+        <span class="mode-chip" id="compScannerModeBadge">Company</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">check_circle</span> Scanned</div>
+          <div class="stat-value neon-green" id="compScannedCount">0</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">pending</span> Queued</div>
+          <div class="stat-value neon-blue" id="compQueueCount">0</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">schedule</span> ETA</div>
+          <div class="stat-value neon-purple" id="compScannerEta" style="font-size: 16px;">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label"><span class="material-icons-round">timer</span> Elapsed</div>
+          <div class="stat-value text-secondary" id="compScannerElapsed" style="font-size: 16px;">0s</div>
+        </div>
+      </div>
+      <div style="padding: 10px 16px;">
+        <div style="position:relative; height:28px; background:#2e2924; border-radius:6px; overflow:hidden;">
+          <div id="compScannerProgressFill" style="height:100%; background:var(--neon-green); width:0%; border-radius:6px; transition:width 0.4s ease; "></div>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px; font-size:12px; font-weight:700; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.5);">
+            <span id="compScannerProgressPercent">0%</span>
+            <span style="opacity:0.6;">·</span>
+            <span id="compScannerProgressText" style="font-weight:500;">0 / 0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company Scanner Preview Card -->
+    <div class="card" id="compScannerPreviewSection">
+      <div class="card-header toggle" id="compScannerPreviewToggle">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span>📊 Company Preview</span>
+          <span class="chip" id="compScannerPreviewCount" style="background:rgba(34,197,94,0.1); color:var(--neon-green); border:1px solid rgba(34,197,94,0.2);">0</span>
+        </div>
+        <span class="material-icons-round chevron">expand_more</span>
+      </div>
+      <div class="collapsible" id="compScannerPreviewContent">
+        <div class="table-wrap">
+          <table id="compScannerPreviewTable" style="display:none;">
+            <thead><tr><th>Name</th><th>Website</th><th>Industry</th><th>Size</th><th>HQ</th><th>Founded</th></tr></thead>
+            <tbody id="compScannerPreviewBody"></tbody>
+          </table>
+          <div style="text-align: center; margin-top: 8px; display: none;" id="compScannerPreviewActions">
+            <button id="showMoreCompScannerPreviewBtn" style="padding: 4px 12px; font-size: 11px; background: rgba(34,197,94,0.1); color: var(--neon-green); border: 1px solid rgba(34,197,94,0.2);">Show More</button>
+          </div>
+          <div class="empty-state" id="compScannerPreviewEmpty">
+            <span class="material-icons-round">table_chart</span>
+            No companies scanned yet
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="copyToast">
+    <span class="material-icons-round" style="font-size:16px;vertical-align:middle;margin-right:4px;">check_circle</span>
+    Copied to clipboard
+  </div>
+
+  <div class="toast" id="errorToast" style="background: var(--bg-card); border: 1px solid var(--neon-red); color: #ef4444;">
+    <span class="material-icons-round" style="font-size:16px;vertical-align:top;margin-right:4px;margin-top:2px;">error</span>
+    <span id="errorToastMsg" style="display:inline-block; max-width: 250px; text-align:left; word-wrap: break-word;">Error</span>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div id="limitModal" style="display:none; position:fixed; inset:0; background:rgba(23,20,18,0.9); z-index:9999; align-items:center; justify-content:center; padding:20px;">
+    <div class="card" style="width:100%; max-width:320px; text-align:center; padding:24px 20px; border-color:rgba(245,158,11,0.4);">
+      <span class="material-icons-round" style="color:var(--neon-amber); font-size:48px; margin-bottom:12px;">warning_amber</span>
+      <h3 style="color:#fff; font-size:16px; margin:0 0 8px 0; font-weight:700;">Scan Limit Reached</h3>
+      <p style="color:var(--text-secondary); font-size:13px; line-height:1.5; margin:0 0 20px 0;">
+        You are about to scan more than 100 profiles today.<br><br>
+        <strong>Proceed at your own risk!</strong>
+      </p>
+      <div style="display:flex; gap:12px; justify-content:center;">
+        <button id="limitCancelBtn" style="flex:1; background:transparent; border:1px solid rgba(255,255,255,0.1); color:var(--text-secondary); padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer;">Cancel</button>
+        <button id="limitConfirmBtn" style="flex:1; background:var(--neon-amber); border:none; color:#000; padding:8px 16px; border-radius:6px; font-weight:700; cursor:pointer;">I Understand</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Limit Modal -->
+  <div id="batchLimitModal" style="display:none; position:fixed; inset:0; background:rgba(23,20,18,0.9); z-index:9999; align-items:center; justify-content:center; padding:20px;">
+    <div class="card" style="width:100%; max-width:320px; text-align:center; padding:24px 20px; border-color:rgba(239,68,68,0.4);">
+      <span class="material-icons-round" style="color:#ef4444; font-size:48px; margin-bottom:12px;">error_outline</span>
+      <h3 style="color:#fff; font-size:16px; margin:0 0 8px 0; font-weight:700;">Batch Limit Exceeded!</h3>
+      <p style="color:var(--text-secondary); font-size:13px; line-height:1.5; margin:0 0 20px 0;">
+        You can only scan a maximum of <strong>50 profiles</strong> at a time to prevent LinkedIn restrictions.
+      </p>
+      <div style="display:flex; justify-content:center;">
+        <button id="batchLimitOkayBtn" style="width:100%; background:#ef4444; border:none; color:#fff; padding:8px 16px; border-radius:6px; font-weight:700; cursor:pointer;">Okay</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
