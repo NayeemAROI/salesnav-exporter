@@ -40,7 +40,7 @@ function renderPreview(rows, mode) {
   const thead = table.querySelector('thead');
   if (thead) {
     thead.innerHTML = mode === 'company'
-      ? '<tr><th>Company</th><th>Industry</th><th>Country</th><th>Employees</th><th>LinkedIn URL</th></tr>'
+      ? '<tr><th>Company</th><th>Industry</th><th>Country</th><th>Website</th><th>Employees</th><th>LinkedIn URL</th></tr>'
       : '<tr><th>Name</th><th>Title</th><th>Company</th><th>Industry</th><th>Location</th><th>Employees</th></tr>';
   }
 
@@ -67,6 +67,7 @@ function renderPreview(rows, mode) {
         <td title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</td>
         <td title="${escHtml(r.industry)}">${escHtml(r.industry)}</td>
         <td title="${escHtml(r.country)}">${escHtml(r.country)}</td>
+        <td title="${escHtml(r.website)}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.website ? `<a href="${escHtml(r.website)}" target="_blank" style="color:var(--neon-blue);text-decoration:none;">${escHtml(r.website)}</a>` : ''}</td>
         <td title="${escHtml(r.employees)}">${escHtml(r.employees)}</td>
         <td title="${escHtml(r.linkedin_profile_url)}" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escHtml(r.linkedin_profile_url)}" target="_blank" style="color:var(--neon-blue);text-decoration:none;">Link</a></td>
       </tr>
@@ -435,11 +436,13 @@ function getStartOptions() {
   const speed = document.getElementById('scrollSpeed').value || 'fast';
   const currentOnly = document.getElementById('currentPageOnly').checked;
   const deepF = document.getElementById('deepFetchBtn').checked;
-  return { 
-    maxProfiles: m > 0 ? m : null, 
+  const companyDeep = document.getElementById('companyDeepBtn').checked;
+  return {
+    maxProfiles: m > 0 ? m : null,
     scrollSpeed: speed,
     currentPageOnly: currentOnly,
-    deepFetch: deepF
+    deepFetch: deepF,
+    companyDeep: companyDeep
   };
 }
 

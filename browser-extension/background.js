@@ -129,7 +129,7 @@ async function sendToTab(tab, msg) {
 function toCsv(rows, mode) {
   const header =
     mode === "company"
-      ? ["company_name", "linkedin_profile_url", "industry", "country", "employees"]
+      ? ["company_name", "linkedin_profile_url", "industry", "country", "website", "employees"]
       : [
         "first_name",
         "last_name",
@@ -284,7 +284,7 @@ async function _stepOnceInner() {
 
   let extracted;
   try {
-    extracted = await sendToTab(tab, { type: "EXTRACT_PAGE", options: { deepFetch: state.deepFetch, page: (state.pagesDone || 0) + 1 } });
+    extracted = await sendToTab(tab, { type: "EXTRACT_PAGE", options: { deepFetch: state.deepFetch, companyDeep: state.companyDeep, page: (state.pagesDone || 0) + 1 } });
   } catch (e) {
     await setState({ status: `paused_error: ${String(e)}`, running: false });
     return;
@@ -1000,7 +1000,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const tab = await chrome.tabs.create({ url: targetUrl });
       // pagesDone is tracked as "number of pages completed so far". 
       // If we start on page 5, pagesDone should be 4, so the next scrape does page 5.
-      await setState({ tabId: tab.id, mode, running: true, status: `running (opening tab at page ${startPage})`, pagesDone: startPage - 1, rows: [], seen: {}, maxProfiles, scrollSpeed: msg.scrollSpeed || 'fast', currentPageOnly: msg.currentPageOnly || false, deepFetch: msg.deepFetch || false });
+      await setState({ tabId: tab.id, mode, running: true, status: `running (opening tab at page ${startPage})`, pagesDone: startPage - 1, rows: [], seen: {}, maxProfiles, scrollSpeed: msg.scrollSpeed || 'fast', currentPageOnly: msg.currentPageOnly || false, deepFetch: msg.deepFetch || false, companyDeep: msg.companyDeep || false });
       // Give the new tab time to load before starting the loop
       setTimeout(() => scheduleNextStep(), 4000);
       sendResponse({ ok: true });
@@ -1037,7 +1037,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
       } catch (e) { }
 
-      await setState({ tabId: tab.id, mode, running: true, status: `running (starting on page ${startPage})`, pagesDone: startPage - 1, rows: newRows, seen: newSeen, maxProfiles, scrollSpeed: msg.scrollSpeed || 'fast', currentPageOnly: msg.currentPageOnly || false, deepFetch: msg.deepFetch || false });
+      await setState({ tabId: tab.id, mode, running: true, status: `running (starting on page ${startPage})`, pagesDone: startPage - 1, rows: newRows, seen: newSeen, maxProfiles, scrollSpeed: msg.scrollSpeed || 'fast', currentPageOnly: msg.currentPageOnly || false, deepFetch: msg.deepFetch || false, companyDeep: msg.companyDeep || false });
       sendResponse({ ok: true });
       // Start the loop asynchronously so we don't block the popup response
       scheduleNextStep();

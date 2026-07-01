@@ -347,7 +347,126 @@
     return containers;
   }
 
-  async function extractCompanyRows() {
+  /* ═══════════════════════════════════════════════════
+   * DEEP COMPANY LOOKUP (opt-in checkbox)
+   * Company search cards don't carry the website, so when enabled we look up
+   * each unique company via LinkedIn's company API to fetch the website (and
+   * backfill industry / country when the card didn't have them). One cached
+   * request per company; any failure → left as-is (never blocks the export).
+   * ═══════════════════════════════════════════════════ */
+  const companyDetailCache = new Map();
+
+  function getCsrfToken() {
+    const m = document.cookie.match(/JSESSIONID="?([^";]+)"?/);
+    return m ? m[1] : '';
+  }
+
+  function companyIdFromUrl(url) {
+    return (String(url || '').match(/\/(?:sales\/company|company)\/(\d+)/) || [])[1] || '';
+  }
+
+  function findWebsiteInJson(node, depth = 0) {
+    if (!node || depth > 6) return '';
+    if (Array.isArray(node)) {
+      for (const x of node) { const r = findWebsiteInJson(x, depth + 1); if (r) return r; }
+      return '';
+    }
+    if (typeof node === 'object') {
+      for (const k in node) {
+        if (/^(website|websiteurl|companywebsite|externalurl)$/i.test(k)) {
+          const v = node[k];
+          const url = typeof v === 'string' ? v : (v && (v.url || v.text)) || '';
+          if (typeof url === 'string' && /^https?:\/\//i.test(url) && !/linkedin\.com|licdn\.com/i.test(url)) return url;
+        }
+      }
+      for (const k in node) { const r = findWebsiteInJson(node[k], depth + 1); if (r) return r; }
+    }
+    return '';
+  }
+
+  function findIndustryInJson(node, depth = 0) {
+    if (!node || depth > 6) return '';
+    if (Array.isArray(node)) {
+      for (const x of node) { const r = findIndustryInJson(x, depth + 1); if (r) return r; }
+      return '';
+    }
+    if (typeof node === 'object') {
+      if (typeof node.industry === 'string' && node.industry.trim()) return node.industry.trim();
+      for (const key of ['companyIndustries', 'industries', 'industryV2']) {
+        const v = node[key];
+        if (typeof v === 'string' && v.trim()) return v.trim();
+        if (Array.isArray(v) && v.length) {
+          const f = v[0];
+          if (typeof f === 'string' && f.trim()) return f.trim();
+          if (f && typeof f === 'object') { const n = f.localizedName || f.name || f.value; if (n) return String(n).trim(); }
+        }
+      }
+      for (const k in node) { if (/urn/i.test(k)) continue; const r = findIndustryInJson(node[k], depth + 1); if (r) return r; }
+    }
+    return '';
+  }
+
+  function findCountryInJson(node, depth = 0) {
+    if (!node || depth > 6) return '';
+    if (Array.isArray(node)) {
+      for (const x of node) { const r = findCountryInJson(x, depth + 1); if (r) return r; }
+      return '';
+    }
+    if (typeof node === 'object') {
+      const hq = node.headquarter || node.headquarters;
+      if (hq && typeof hq === 'object') {
+        const c = hq.country || hq.countryName || (hq.address && hq.address.country);
+        if (typeof c === 'string' && c.trim()) return c.trim();
+      }
+      for (const k in node) {
+        if (/^country(name)?$/i.test(k) && typeof node[k] === 'string' && node[k].trim() && node[k].length <= 40) return node[k].trim();
+      }
+      for (const k in node) { const r = findCountryInJson(node[k], depth + 1); if (r) return r; }
+    }
+    return '';
+  }
+
+  async function fetchCompanyDetails(companyId) {
+    if (!companyId) return null;
+    if (companyDetailCache.has(companyId)) return companyDetailCache.get(companyId);
+
+    const headers = { accept: 'application/json', 'x-restli-protocol-version': '2.0.0' };
+    const csrf = getCsrfToken();
+    if (csrf) headers['csrf-token'] = csrf;
+
+    const urls = [
+      `https://www.linkedin.com/sales-api/salesApiCompanies/${encodeURIComponent(companyId)}`,
+      `https://www.linkedin.com/voyager/api/organization/companies/${encodeURIComponent(companyId)}`,
+    ];
+
+    let details = null;
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { method: 'GET', headers, credentials: 'include' });
+        if (!res.ok) { dbgCo('detail HTTP', res.status, companyId); continue; }
+        if (!(res.headers.get('content-type') || '').includes('json')) continue;
+        const json = await res.json();
+        const d = { website: findWebsiteInJson(json), industry: findIndustryInJson(json), country: findCountryInJson(json) };
+        dbgCo('detail', companyId, d);
+        if (d.website || d.industry || d.country) { details = d; break; }
+      } catch (e) { dbgCo('detail threw', String(e)); }
+    }
+
+    companyDetailCache.set(companyId, details);
+    return details;
+  }
+
+  async function resolveCompanyDetails(ids, concurrency = 4) {
+    const map = new Map();
+    let i = 0;
+    async function worker() {
+      while (i < ids.length) { const id = ids[i++]; map.set(id, await fetchCompanyDetails(id)); }
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, ids.length) }, worker));
+    return map;
+  }
+
+  async function extractCompanyRows(options = {}) {
     // Wait for company links to appear in DOM
     await waitForElements(SEL.companyLink, 12000);
     await scrollToLoadAllCards();
@@ -370,7 +489,8 @@
         company_name = normalizeText(companyLink.textContent || '');
       }
 
-      const linkedin_profile_url = cleanCompanyUrl(absUrl(companyLink.getAttribute('href')));
+      const rawHref = companyLink.getAttribute('href');
+      const linkedin_profile_url = cleanCompanyUrl(absUrl(rawHref));
       if (!company_name || !linkedin_profile_url) continue;
 
       const uniqueKey = linkedin_profile_url || company_name;
@@ -382,11 +502,25 @@
       const country = deriveCountry(location);
       const industry = extractIndustry(card, company_name, location, lines);
       const employees = extractEmployees(card, lines);
+      const companyId = companyIdFromUrl(rawHref) || companyIdFromUrl(linkedin_profile_url);
 
-      rows.push({ company_name, linkedin_profile_url, industry, country, employees });
+      rows.push({ company_name, linkedin_profile_url, industry, country, website: '', employees, __companyId: companyId });
     }
 
-    return rows;
+    // Opt-in deep lookup: fetch website + backfill blank industry/country.
+    if (options.companyDeep) {
+      const ids = [...new Set(rows.map((r) => r.__companyId).filter(Boolean))];
+      const details = await resolveCompanyDetails(ids);
+      for (const r of rows) {
+        const d = details.get(r.__companyId);
+        if (!d) continue;
+        if (d.website) r.website = d.website;
+        if (!r.industry && d.industry) r.industry = d.industry;
+        if (!r.country && d.country) r.country = d.country;
+      }
+    }
+
+    return rows.map(({ __companyId, ...r }) => r);
   }
 
   /* ═══════════════════════════════════════════════════
@@ -398,7 +532,7 @@
     (async () => {
       try {
         if (msg.type === 'EXTRACT_PAGE') {
-          const rows = await extractCompanyRows();
+          const rows = await extractCompanyRows(msg.options || {});
           const cards = countCompanyCards();
           sendResponse({ ok: true, rows, meta: { cards } });
           return;
