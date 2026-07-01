@@ -104,7 +104,7 @@
     return [
       /^(save|more|follow|message|connect|pending)$/i,
       /^(view\s+profile|view\s+on\s+linkedin|open\s+profile)$/i,
-      /^(show\s+more|see\s+all|about|recent\s+activity)$/i,
+      /^(show\s+more|see\s+all|about|recent\s+activity)\s*:?$/i,
       /^(inmail|send\s+inmail)$/i,
       /^\d+[kmb]?\+?\s*(followers?|connections?)$/i,
       /^\d+\s+(day|days|week|weeks|month|months|year|years)\b/i,
@@ -142,13 +142,19 @@
   }
 
   function looksLikeIndustry(line) {
-    if (!line || line.length < 2 || line.length > 90) return false;
-    if (!/[A-Za-z]/.test(line)) return false;
-    if (looksLikeLocation(line)) return false;
-    if (isUiNoise(line)) return false;
-    if (/\b(employee|employees|follower|followers|headcount|growth|in\s+common)\b/i.test(line)) return false;
-    if (/\b(year|month|week|day|hour|min)\b/i.test(line)) return false;
-    if (/^https?:\/\//i.test(line)) return false;
+    if (!line) return false;
+    // Drop trailing colon/whitespace so section labels like "About:" normalize
+    // to "About" and get caught by the label checks below.
+    const clean = line.replace(/[\s:：]+$/, '').trim();
+    if (clean.length < 2 || clean.length > 90) return false;
+    if (!/[A-Za-z]/.test(clean)) return false;
+    if (looksLikeLocation(clean)) return false;
+    if (isUiNoise(clean)) return false;
+    // Reject card section labels / blurbs — none of these are industries.
+    if (/^(about|overview|description|summary|specialt(?:y|ies|ities)|website|headquarters|hq|founded|company\s+size|phone|similar\s+companies|see\s+jobs|view\s+jobs)\b/i.test(clean)) return false;
+    if (/\b(employee|employees|follower|followers|headcount|growth|in\s+common)\b/i.test(clean)) return false;
+    if (/\b(year|month|week|day|hour|min)\b/i.test(clean)) return false;
+    if (/^https?:\/\//i.test(clean)) return false;
     return true;
   }
 
