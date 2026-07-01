@@ -564,7 +564,7 @@
 
   async function scrollToLoadAllCards() {
     const containers = findScrollContainers();
-    const STEP = 400; // small steps trip LinkedIn's lazy-load more reliably
+    const STEP = 300; // small steps + longer pauses give sections time to load
     const countCards = () => document.querySelectorAll(`${SEL.card} ${SEL.leadLink}`).length;
 
     // Sales Navigator packs exactly 25 leads per page except the last one.
@@ -572,10 +572,10 @@
     // never stop short at 20–23. On the last page Next is gone → target unknown,
     // so we fall back to "stop when a whole pass adds nothing new".
     const EXPECTED = findNextButton() ? 25 : 0;
-    const DEADLINE = Date.now() + 25000; // hard cap so we can never hang
+    const DEADLINE = Date.now() + 40000; // hard cap so we can never hang
 
     scrollTo(containers, 0);
-    await sleep(200);
+    await sleep(300);
 
     let prevPassCount = -1;
     while (Date.now() < DEADLINE) {
@@ -584,14 +584,14 @@
       while (pos < maxS && Date.now() < DEADLINE) {
         pos += STEP;
         scrollTo(containers, pos);
-        await sleep(150);
+        await sleep(320); // dwell so each card's sections can render
         if (EXPECTED && countCards() >= EXPECTED) break; // full page fully loaded
         maxS = maxScroll(containers);
       }
 
       // Nudge past the bottom to trigger any trailing cards.
       scrollTo(containers, maxScroll(containers) + 3000);
-      await sleep(220);
+      await sleep(450);
 
       const count = countCards();
       if (EXPECTED && count >= EXPECTED) break;   // got the whole page
@@ -599,11 +599,11 @@
       prevPassCount = count;
 
       scrollTo(containers, 0); // re-walk from the top so slow/upper cards reload
-      await sleep(180);
+      await sleep(320);
     }
 
     scrollTo(containers, 0);
-    await sleep(150);
+    await sleep(200);
   }
 
   /* ═══════════════════════════════════════════════════
