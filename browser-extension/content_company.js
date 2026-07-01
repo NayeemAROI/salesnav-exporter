@@ -141,6 +141,9 @@
     return false;
   }
 
+  const SNX_CO_DEBUG = true; // logs why a company's industry came out blank
+  const dbgCo = (...a) => { if (SNX_CO_DEBUG) console.log('%c[SNX co]', 'color:#f97316', ...a); };
+
   // Backstop allowlist for real LinkedIn industries that contain no obvious
   // industry keyword (so the keyword test below wouldn't catch them).
   const INDUSTRY_SET = new Set([
@@ -222,6 +225,10 @@
       if (companyLower && lower.includes(companyLower)) continue;
       return line;
     }
+
+    // Blank: show what the card actually contained so we can tell whether the
+    // industry was absent (timing/markup) or wrongly rejected by the filter.
+    dbgCo('no industry for', companyName, '| attr=', JSON.stringify(fromAttrs || ''), '| lines=', lines);
     return '';
   }
 
