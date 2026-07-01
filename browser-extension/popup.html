@@ -393,7 +393,8 @@
     </div>
     <div class="header-right">
       <span class="chip stopped" id="runBadge">Stopped</span>
-      <button class="icon-btn" id="settingsToggle" title="Settings">
+      <!-- Settings are locked to CSV · Fast · all pages · Deep Fetch ON and hidden from the UI. -->
+      <button class="icon-btn" id="settingsToggle" title="Settings" style="display:none">
         <span class="material-icons-round" style="font-size:20px">tune</span>
       </button>
     </div>
@@ -403,6 +404,17 @@
     <div class="tab active" data-tab="searchScraperTab">Search Scraper</div>
     <div class="tab" data-tab="profileScannerTab">Profile Scanner</div>
     <div class="tab" data-tab="companyScannerTab">Company Scanner</div>
+  </div>
+
+  <!-- Current Page Only — kept as a user choice, surfaced on top -->
+  <div id="pageScopeBar" style="background: var(--bg-card); border-bottom: 1px solid var(--glass-border); padding: 10px 16px;">
+    <div class="setting-row" style="padding:0;">
+      <span class="setting-label">Current Page Only</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="currentPageOnly" />
+        <span class="slider round"></span>
+      </label>
+    </div>
   </div>
 
   <div id="settingsPanel">
@@ -422,19 +434,12 @@
       </select>
     </div>
     <div class="setting-row">
-      <span class="setting-label">Current Page Only</span>
-      <label class="toggle-switch">
-        <input type="checkbox" id="currentPageOnly" />
-        <span class="slider round"></span>
-      </label>
-    </div>
-    <div class="setting-row">
       <span class="setting-label" style="display:flex; flex-direction:column; gap:2px;">
         Deep Fetch (Industry)
         <span style="font-size:9px; color:var(--text-faint); font-weight:normal;">Looks up each company's industry via LinkedIn's API.</span>
       </span>
       <label class="toggle-switch">
-        <input type="checkbox" id="deepFetchBtn" />
+        <input type="checkbox" id="deepFetchBtn" checked />
         <span class="slider round"></span>
       </label>
     </div>
