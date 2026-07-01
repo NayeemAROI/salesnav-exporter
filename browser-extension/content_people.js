@@ -449,35 +449,46 @@
 
   async function scrollToLoadAllCards() {
     const containers = findScrollContainers();
-    const STEP = 800;
+    const STEP = 400; // small steps trip LinkedIn's lazy-load more reliably
+    const countCards = () => document.querySelectorAll(`${SEL.card} ${SEL.leadLink}`).length;
+
+    // Sales Navigator packs exactly 25 leads per page except the last one.
+    // If "Next" is enabled this is a full page, so we know to wait for 25 and
+    // never stop short at 20–23. On the last page Next is gone → target unknown,
+    // so we fall back to "stop when a whole pass adds nothing new".
+    const EXPECTED = findNextButton() ? 25 : 0;
+    const DEADLINE = Date.now() + 25000; // hard cap so we can never hang
+
     scrollTo(containers, 0);
     await sleep(200);
 
-    let pos = 0, maxS = maxScroll(containers), stable = 0, lastCount = 0;
-
-    while (pos < maxS) {
-      pos += STEP;
-      scrollTo(containers, pos);
-      await sleep(180); // Fast scroll — LinkedIn lazy-loads within 100-200ms
-
-      const count = document.querySelectorAll(`${SEL.card} ${SEL.leadLink}`).length;
-      if (count === lastCount && count > 0) {
-        stable++;
-        // Use higher stability threshold (8 instead of 3) because 
-        // Chrome massively throttles background tab setTimeout / renders.
-        if (count >= 25 || stable >= 8) break; // SN max = 25 per page
-      } else {
-        stable = 0;
+    let prevPassCount = -1;
+    while (Date.now() < DEADLINE) {
+      // One slow top→bottom pass, letting each chunk lazy-load as we go.
+      let pos = 0, maxS = maxScroll(containers);
+      while (pos < maxS && Date.now() < DEADLINE) {
+        pos += STEP;
+        scrollTo(containers, pos);
+        await sleep(150);
+        if (EXPECTED && countCards() >= EXPECTED) break; // full page fully loaded
+        maxS = maxScroll(containers);
       }
-      lastCount = count;
-      maxS = maxScroll(containers);
+
+      // Nudge past the bottom to trigger any trailing cards.
+      scrollTo(containers, maxScroll(containers) + 3000);
+      await sleep(220);
+
+      const count = countCards();
+      if (EXPECTED && count >= EXPECTED) break;   // got the whole page
+      if (count === prevPassCount) break;         // a full pass added nothing → done
+      prevPassCount = count;
+
+      scrollTo(containers, 0); // re-walk from the top so slow/upper cards reload
+      await sleep(180);
     }
 
-    // Slam to bottom to catch any stragglers
-    scrollTo(containers, maxScroll(containers) + 5000);
-    await sleep(250);
     scrollTo(containers, 0);
-    await sleep(120);
+    await sleep(150);
   }
 
   /* ═══════════════════════════════════════════════════
