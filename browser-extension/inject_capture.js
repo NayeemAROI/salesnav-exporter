@@ -4,37 +4,91 @@
   /* ═══════════════════════════════════════════════════
    * LEAD-SEARCH CAPTURE (MAIN world)
    *
-   * Runs in the page's own JS context (world: MAIN) so it can see Sales
-   * Navigator's own fetch/XHR calls. Each lead-search response contains
-   * EVERY lead for a page in a single JSON payload — unlike the DOM, which
-   * lazy-loads and sometimes renders only 20–23 of 25 cards.
+   * Runs in the page's own JS context so it can see Sales Navigator's own
+   * fetch/XHR. Each lead-search response holds EVERY lead for a page in one
+   * JSON payload — unlike the DOM, which lazy-loads and can miss cards.
    *
-   * We passively clone matching responses and forward them (URL + JSON) to
-   * the isolated content script via postMessage. We never block or modify
-   * the page's own requests.
+   * Matching is SHAPE-based (any API response carrying a lead-like `elements`
+   * array), not URL-based, because SN's endpoint name varies. A discovery log
+   * ([SNX url]) prints candidate endpoints + field names so the parser can be
+   * pinned to the live payload.
    * ═══════════════════════════════════════════════════ */
 
-  function isLeadSearch(url) {
-    if (!url) return false;
-    return /salesApiLeadSearch|salesApiPeopleSearch|leadSearch|peopleSearch|searchDashClusters/i.test(String(url));
+  const DISCOVER = true; // set false once the parser is pinned
+
+  function isApiUrl(url) {
+    return /\/(sales-api|voyager)\/|graphql/i.test(String(url || ''));
+  }
+
+  // Find a lead-like array anywhere shallow in the payload (top-level or under
+  // `data`, `elements`, `included`, or a graphql cluster).
+  function findLeadArray(json, depth) {
+    if (!json || typeof json !== 'object' || depth > 4) return null;
+    if (Array.isArray(json)) {
+      return looksLikeLeads(json) ? json : null;
+    }
+    if (Array.isArray(json.elements) && looksLikeLeads(json.elements)) return json.elements;
+    if (Array.isArray(json.included) && looksLikeLeads(json.included)) return json.included;
+    for (const k of Object.keys(json)) {
+      const v = json[k];
+      if (v && typeof v === 'object') {
+        const found = findLeadArray(v, depth + 1);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  function looksLikeLeads(arr) {
+    if (!Array.isArray(arr) || arr.length < 2) return false;
+    let hits = 0;
+    for (const e of arr.slice(0, 6)) {
+      if (!e || typeof e !== 'object') continue;
+      if (e.firstName || e.lastName || e.fullName || e.formattedName) { hits++; continue; }
+      const urn = JSON.stringify(e.entityUrn || e.objectUrn || e.memberUrn || e.profileUrn || '');
+      if (/salesProfile|fs_lead|fsd_profile|member/i.test(urn)) hits++;
+    }
+    return hits >= 2;
+  }
+
+  const seen = new Set();
+  function discover(url, json) {
+    if (!DISCOVER) return;
+    let path;
+    try { path = new URL(url, location.origin).pathname; } catch (e) { path = String(url).slice(0, 90); }
+    const arr = findLeadArray(json, 0);
+    const key = path + (arr ? ':leads' : '');
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (arr) {
+      const sample = arr.find((x) => x && typeof x === 'object') || {};
+      console.log('%c[SNX url]', 'color:#eab308', 'LEADS @', path, 'count=', arr.length, 'keys=', Object.keys(sample));
+    } else if (/graphql/i.test(path) || /search/i.test(String(url))) {
+      console.log('%c[SNX url]', 'color:#eab308', path, '(api, no lead array found)');
+    }
   }
 
   const buffer = []; // recent captures, replayed if the content script loads late
-
-  function forward(url, json) {
-    buffer.push({ url: String(url), json });
+  function forward(url, leads) {
+    buffer.push({ url: String(url), leads });
     while (buffer.length > 8) buffer.shift();
     try {
-      window.postMessage({ __snxLeadCapture: true, url: String(url), json }, window.location.origin);
-    } catch (e) { /* structured-clone/serialization issue — ignore */ }
+      window.postMessage({ __snxLeadCapture: true, url: String(url), leads }, window.location.origin);
+    } catch (e) { /* serialization issue — ignore */ }
   }
 
-  // The isolated content script announces itself on load; replay what we have
-  // so a capture that fired before it was listening isn't lost.
+  function handle(url, json) {
+    if (!isApiUrl(url)) return;
+    try { discover(url, json); } catch (e) {}
+    const arr = findLeadArray(json, 0);
+    if (arr) forward(url, arr);
+  }
+
+  // Replay buffered captures when the isolated content script announces itself.
   window.addEventListener('message', (e) => {
     if (e.source !== window || !e.data || e.data.__snxReady !== true) return;
     for (const b of buffer) {
-      try { window.postMessage({ __snxLeadCapture: true, url: b.url, json: b.json }, window.location.origin); } catch (_) {}
+      try { window.postMessage({ __snxLeadCapture: true, url: b.url, leads: b.leads }, window.location.origin); } catch (_) {}
     }
   });
 
@@ -46,12 +100,10 @@
       try {
         const req = args[0];
         const url = typeof req === 'string' ? req : (req && req.url) || '';
-        if (isLeadSearch(url)) {
-          promise.then((res) => {
-            res.clone().json().then((j) => forward(url, j)).catch(() => {});
-          }).catch(() => {});
+        if (isApiUrl(url)) {
+          promise.then((res) => { res.clone().json().then((j) => handle(url, j)).catch(() => {}); }).catch(() => {});
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
       return promise;
     };
   }
@@ -65,12 +117,12 @@
   };
   XMLHttpRequest.prototype.send = function () {
     try {
-      if (isLeadSearch(this.__snxUrl)) {
+      if (isApiUrl(this.__snxUrl)) {
         this.addEventListener('load', function () {
-          try { forward(this.__snxUrl, JSON.parse(this.responseText)); } catch (e) {}
+          try { handle(this.__snxUrl, JSON.parse(this.responseText)); } catch (e) {}
         });
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
     return origSend.apply(this, arguments);
   };
 })();

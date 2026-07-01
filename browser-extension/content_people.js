@@ -293,14 +293,15 @@
     if (!d || d.__snxLeadCapture !== true) return;
     try {
       const start = parseStartOffset(d.url);
-      const leads = parseLeadSearchJson(d.json);
-      if (leads && leads.length) {
+      const raw = Array.isArray(d.leads) ? d.leads : [];
+      const leads = raw.map(leadFromElement).filter(Boolean);
+      if (leads.length) {
         capturedPages.push({ start, leads, ts: Date.now() });
         while (capturedPages.length > 20) capturedPages.shift();
-        dbgCap(`captured ${leads.length} leads (start=${start})`, d.url);
+        dbgCap(`captured ${leads.length}/${raw.length} leads (start=${start})`, d.url);
       } else {
-        dbgCap('lead-search response seen but 0 leads parsed. top-level keys:',
-          d.json && typeof d.json === 'object' ? Object.keys(d.json) : typeof d.json, d.url);
+        dbgCap(`lead array received (${raw.length}) but 0 parsed. sample keys:`,
+          raw[0] && typeof raw[0] === 'object' ? Object.keys(raw[0]) : typeof raw[0]);
       }
     } catch (err) {
       dbgCap('parse error', String(err));
