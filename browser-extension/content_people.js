@@ -210,34 +210,47 @@
     return '';
   }
 
+  // Flip to true to print per-request diagnostics to the page console.
+  const SNX_DEBUG = true;
+  const dbg = (...a) => { if (SNX_DEBUG) console.log('%c[SNX industry]', 'color:#f97316', ...a); };
+
   /** Fetch (and cache) a single company's industry via the SN company API. */
   async function fetchCompanyIndustry(companyId) {
     if (!companyId) return '';
     if (industryCache.has(companyId)) return industryCache.get(companyId);
 
-    const headers = { 'accept': 'application/json', 'x-restli-protocol-version': '2.0.0' };
     const csrf = getCsrfToken();
+    const headers = {
+      'accept': 'application/json',
+      'x-restli-protocol-version': '2.0.0',
+    };
     if (csrf) headers['csrf-token'] = csrf;
 
     const encId = encodeURIComponent(companyId);
     const urls = [
-      `https://www.linkedin.com/sales-api/salesApiCompanies/${encId}`,
       `https://www.linkedin.com/sales-api/salesApiCompanies/${encId}?decorationId=com.linkedin.sales.deco.desktop.company.FullCompany-16`,
+      `https://www.linkedin.com/sales-api/salesApiCompanies/${encId}`,
+      `https://www.linkedin.com/voyager/api/organization/companies/${encId}`,
+      `https://www.linkedin.com/voyager/api/entities/companies/${encId}`,
     ];
 
     let industry = '';
     for (const url of urls) {
       try {
         const res = await fetch(url, { method: 'GET', headers, credentials: 'include' });
-        if (!res.ok) continue;
-        if (!(res.headers.get('content-type') || '').includes('json')) continue;
-        industry = findIndustryInJson(await res.json());
+        const ct = res.headers.get('content-type') || '';
+        if (!res.ok) { dbg('HTTP', res.status, url); continue; }
+        if (!ct.includes('json')) { dbg('non-JSON', ct, url); continue; }
+        const json = await res.json();
+        industry = findIndustryInJson(json);
+        dbg(industry ? `OK "${industry}"` : 'JSON but no industry field', url);
         if (industry) break;
       } catch (e) {
-        // network/parse error — try the next URL, else fall through to ''
+        dbg('threw', String(e), url);
       }
     }
 
+    if (!csrf) dbg('WARNING: no JSESSIONID/CSRF token found — LinkedIn will reject the request');
     industryCache.set(companyId, industry);
     return industry;
   }
