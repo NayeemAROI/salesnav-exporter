@@ -141,21 +141,44 @@
     return false;
   }
 
+  // Backstop allowlist for real LinkedIn industries that contain no obvious
+  // industry keyword (so the keyword test below wouldn't catch them).
+  const INDUSTRY_SET = new Set([
+    'internet','banking','insurance','retail','wholesale','construction','hospitality',
+    'utilities','semiconductors','nanotechnology','tobacco','philanthropy','think tanks',
+    'alternative dispute resolution','executive office','legislative office','public policy',
+    'international affairs','political organizations','luxury goods and jewelry','import and export',
+    'packaging and containers','packaging & containers','industrial automation','operations research',
+    'venture capital and private equity','capital markets','online media','photography'
+  ]);
+
+  // Characteristic words a real LinkedIn industry almost always contains.
+  const INDUSTRY_TAIL = /\b(manufactur\w*|services?|software|technolog\w*|retail|wholesale|construction|bank\w*|financ\w*|insurance|healthcare|health\s*care|hospitals?|medical|medicine|dental|veterinary|pharmaceutical\w*|biotechnolog\w*|biotech|education|e-?learning|training|coaching|media|broadcast\w*|telecommunications?|telecom|transportation|logistics|warehousing|supply\s*chain|real\s*estate|consult\w*|automotive|automobile|motor\s*vehicle|aerospace|aviation|airlines?|maritime|shipbuilding|railroad|trucking|freight|semiconductor\w*|electronics?|electrical|utilit\w*|energy|oil|gas|renewable\w*|mining|metals?|steel|chemicals?|plastics?|textiles?|apparel|fashion|luxury|jewelry|furniture|packaging|containers?|paper|building\s*materials|glass|ceramics|agricultur\w*|farming|ranching|fishing|dairy|food|beverages?|tobacco|wine|spirits|cosmetics|goods|machinery|automation|industrial|robotics|nanotechnology|defen[sc]e|security|government|administration|nonprofit|non-profit|accounting|legal|law\s*practice|research|design|architecture|engineering|internet|computers?|networking|hospitality|hotels?|restaurants?|leisure|travel|tourism|entertainment|gaming|games?|casinos|gambling|sports|recreation|publishing|newspapers?|books?|music|movies|animation|photography|printing|advertising|marketing|public\s*relations|staffing|recruiting|outsourcing|offshoring|human\s*resources|wellness|fitness|events|venture\s*capital|investment|capital\s*markets|import|export|facilities)\b/i;
+
   function looksLikeIndustry(line) {
     if (!line) return false;
-    // Drop trailing colon/whitespace so section labels like "About:" normalize
-    // to "About" and get caught by the label checks below.
     const clean = line.replace(/[\s:：]+$/, '').trim();
-    if (clean.length < 2 || clean.length > 90) return false;
+    if (clean.length < 2 || clean.length > 80) return false;
     if (!/[A-Za-z]/.test(clean)) return false;
+    const lower = clean.toLowerCase();
+
+    // ── Hard noise rejects: badges, buyer-intent, hiring, CTAs, taglines ──
+    if (/\b(buyer\s+intent|hiring|actively\s+recruiting|recently\s+hired|in\s+the\s+news|mutual|shared\s+connection|save|message|connect|follows?|following|linkedin\s+(member|premium))\b/i.test(lower)) return false;
+    if (/^(our\s+(mission|vision|story|goal|purpose|values)|we\s+(are|'re|provide|help|build|deliver|offer|specialize|enable)|leading|the\s+leader|leader\s+in|welcome\s+to|for\s+more)/i.test(lower)) return false;
+    // Sentence/blurb: mid-line sentence punctuation followed by more words.
+    if (/[:;.!?]\s*\S/.test(clean) && clean.split(/\s+/).length > 4) return false;
     if (looksLikeLocation(clean)) return false;
     if (isUiNoise(clean)) return false;
-    // Reject card section labels / blurbs — none of these are industries.
-    if (/^(about|overview|description|summary|specialt(?:y|ies|ities)|website|headquarters|hq|founded|company\s+size|phone|similar\s+companies|see\s+jobs|view\s+jobs)\b/i.test(clean)) return false;
-    if (/\b(employee|employees|follower|followers|headcount|growth|in\s+common)\b/i.test(clean)) return false;
-    if (/\b(year|month|week|day|hour|min)\b/i.test(clean)) return false;
+    if (/^(about|overview|description|summary|specialt(?:y|ies|ities)|website|headquarters|hq|founded|company\s+size|phone|similar\s+companies|see\s+jobs|view\s+jobs)\b/i.test(lower)) return false;
+    if (/\b(employee|employees|follower|followers|headcount|growth|in\s+common)\b/i.test(lower)) return false;
+    if (/\b(year|month|week|day|hour|min)\b/i.test(lower)) return false;
     if (/^https?:\/\//i.test(clean)) return false;
-    return true;
+
+    // ── Positive validation: must be a known industry or clearly industry-shaped ──
+    const norm = lower.replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
+    if (INDUSTRY_SET.has(norm)) return true;
+    if (INDUSTRY_TAIL.test(lower) && clean.split(/\s+/).length <= 8) return true;
+    return false;
   }
 
   function extractEmployees(li, lines) {
