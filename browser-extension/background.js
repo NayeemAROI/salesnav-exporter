@@ -176,30 +176,12 @@ async function pushHistory(entry) {
 }
 
 
-// Download a string as a file using a Blob object URL. Scales to large
-// exports (no URL-length limit, no full-string-in-a-URL memory blowup) and
-// works inside the MV3 service worker. Revokes the URL once the download
-// settles so it isn't leaked.
+// Download a string as a file. MV3 service workers do NOT expose
+// URL.createObjectURL (it was removed), so Blob object URLs are impossible
+// here — we must use a data: URL, which downloads.download() accepts.
 async function downloadBlob(content, mimeType, filename, saveAs = false) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  try {
-    const downloadId = await chrome.downloads.download({ url, filename, saveAs });
-    const revoke = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
-    chrome.downloads.onChanged.addListener(function onChanged(delta) {
-      if (delta.id === downloadId && delta.state &&
-          (delta.state.current === 'complete' || delta.state.current === 'interrupted')) {
-        chrome.downloads.onChanged.removeListener(onChanged);
-        revoke();
-      }
-    });
-    // Safety net in case the onChanged event is missed.
-    setTimeout(revoke, 60000);
-    return downloadId;
-  } catch (e) {
-    try { URL.revokeObjectURL(url); } catch (_) {}
-    throw e;
-  }
+  const url = `data:${mimeType},${encodeURIComponent(content)}`;
+  return chrome.downloads.download({ url, filename, saveAs });
 }
 
 async function downloadData(rows, format, mode, filename, kind) {
