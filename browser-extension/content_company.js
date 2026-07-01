@@ -211,6 +211,14 @@
     return lines.find((line) => looksLikeLocation(line)) || '';
   }
 
+  // Country = last comma-separated segment of the HQ location
+  // ("Kuala Lumpur, Malaysia" → "Malaysia"; "Singapore" → "Singapore").
+  function deriveCountry(loc) {
+    if (!loc) return '';
+    const parts = String(loc).split(',').map((s) => s.trim()).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : '';
+  }
+
   function extractIndustry(li, companyName, companyLocation, lines) {
     const companyLower = (companyName || '').toLowerCase();
     const locationLower = (companyLocation || '').toLowerCase();
@@ -370,10 +378,12 @@
       seen.add(uniqueKey);
 
       const lines = getCardLines(card);
-      const industry = extractIndustry(card, company_name, '', lines);
+      const location = extractCompanyLocation(card, lines);
+      const country = deriveCountry(location);
+      const industry = extractIndustry(card, company_name, location, lines);
       const employees = extractEmployees(card, lines);
 
-      rows.push({ company_name, linkedin_profile_url, industry, employees });
+      rows.push({ company_name, linkedin_profile_url, industry, country, employees });
     }
 
     return rows;

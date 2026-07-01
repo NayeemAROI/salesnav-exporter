@@ -129,7 +129,7 @@ async function sendToTab(tab, msg) {
 function toCsv(rows, mode) {
   const header =
     mode === "company"
-      ? ["company_name", "linkedin_profile_url", "industry", "employees"]
+      ? ["company_name", "linkedin_profile_url", "industry", "country", "employees"]
       : [
         "first_name",
         "last_name",
