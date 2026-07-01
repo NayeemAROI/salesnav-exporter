@@ -145,10 +145,125 @@
   }
 
   /* ═══════════════════════════════════════════════════
+   * INDUSTRY RESOLVER — Sales Navigator internal API
+   *
+   * Deep Fetch no longer hovers over each lead. Instead we
+   * read the company id from each card's company link and ask
+   * LinkedIn's own Sales Navigator company endpoint for the
+   * canonical industry value. Same-origin fetch → auth cookies
+   * flow automatically; we only need the CSRF token.
+   *
+   *   • One request per UNIQUE company (cached), not per lead.
+   *   • Bounded concurrency so we don't hammer the endpoint.
+   *   • Any error / missing field → '' (leave blank, never guess).
+   * ═══════════════════════════════════════════════════ */
+  const industryCache = new Map(); // companyId -> industry ('' = resolved, none found)
+
+  /** LinkedIn's CSRF token is the JSESSIONID cookie value (quotes stripped). */
+  function getCsrfToken() {
+    const m = document.cookie.match(/JSESSIONID="?([^";]+)"?/);
+    return m ? m[1] : '';
+  }
+
+  /** Extract the Sales Navigator company id from a /sales/company/<id> URL. */
+  function companyIdFromUrl(url) {
+    return (url || '').match(/\/sales\/company\/([^,/?#]+)/)?.[1] || '';
+  }
+
+  /**
+   * Recursively locate an industry label inside an arbitrary API JSON.
+   * Robust to shape drift: handles a plain `industry` string, and the
+   * common array shapes (`companyIndustries` / `industries` / `industryV2`)
+   * whose entries may be strings or objects with localizedName/name.
+   */
+  function findIndustryInJson(node, depth = 0) {
+    if (!node || depth > 6) return '';
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = findIndustryInJson(item, depth + 1);
+        if (found) return found;
+      }
+      return '';
+    }
+    if (typeof node === 'object') {
+      if (typeof node.industry === 'string' && node.industry.trim()) {
+        return node.industry.trim();
+      }
+      for (const key of ['companyIndustries', 'industries', 'industryV2']) {
+        const v = node[key];
+        if (typeof v === 'string' && v.trim()) return v.trim();
+        if (Array.isArray(v) && v.length) {
+          const first = v[0];
+          if (typeof first === 'string' && first.trim()) return first.trim();
+          if (first && typeof first === 'object') {
+            const name = first.localizedName || first.name || first.value || '';
+            if (name && String(name).trim()) return String(name).trim();
+          }
+        }
+      }
+      for (const k in node) {
+        if (k === 'industryUrn' || k === 'industryUrns') continue; // urn only, no label
+        const found = findIndustryInJson(node[k], depth + 1);
+        if (found) return found;
+      }
+    }
+    return '';
+  }
+
+  /** Fetch (and cache) a single company's industry via the SN company API. */
+  async function fetchCompanyIndustry(companyId) {
+    if (!companyId) return '';
+    if (industryCache.has(companyId)) return industryCache.get(companyId);
+
+    const headers = { 'accept': 'application/json', 'x-restli-protocol-version': '2.0.0' };
+    const csrf = getCsrfToken();
+    if (csrf) headers['csrf-token'] = csrf;
+
+    const encId = encodeURIComponent(companyId);
+    const urls = [
+      `https://www.linkedin.com/sales-api/salesApiCompanies/${encId}`,
+      `https://www.linkedin.com/sales-api/salesApiCompanies/${encId}?decorationId=com.linkedin.sales.deco.desktop.company.FullCompany-16`,
+    ];
+
+    let industry = '';
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { method: 'GET', headers, credentials: 'include' });
+        if (!res.ok) continue;
+        if (!(res.headers.get('content-type') || '').includes('json')) continue;
+        industry = findIndustryInJson(await res.json());
+        if (industry) break;
+      } catch (e) {
+        // network/parse error — try the next URL, else fall through to ''
+      }
+    }
+
+    industryCache.set(companyId, industry);
+    return industry;
+  }
+
+  /** Resolve many company ids with bounded concurrency → Map(id → industry). */
+  async function resolveIndustries(companyIds, concurrency = 5) {
+    const ids = [...new Set(companyIds.filter(Boolean))];
+    const map = new Map();
+    let i = 0;
+    async function worker() {
+      while (i < ids.length) {
+        const id = ids[i++];
+        map.set(id, await fetchCompanyIndustry(id));
+      }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, ids.length) }, worker)
+    );
+    return map;
+  }
+
+  /* ═══════════════════════════════════════════════════
    * SINGLE CARD PARSER
    * Extracts all visible fields from one <li> card.
    * ═══════════════════════════════════════════════════ */
-  function parseCard(li, deepIndustry = '') {
+  function parseCard(li, industryByCompany = null) {
     // ── 1. Name Link + Sales Navigator URL ──
     const nameLink = li.querySelector(SEL.leadLinkPrimary) || li.querySelector(SEL.leadLink);
     if (!nameLink) return null;
@@ -222,11 +337,13 @@
       }
     }
 
-    // ── 6.5 Industry ──
-    let industry = deepIndustry;
-    if (!industry) {
-      const industryEl = q(li, SEL.industry);
-      industry = industryEl ? txt(industryEl) : '';
+    // ── 6.5 Industry (resolved via SN company API when Deep Fetch is on) ──
+    // Lead cards never render an industry node — it's a company attribute —
+    // so we look it up by company id from the pre-resolved map.
+    let industry = '';
+    const companyId = companyIdFromUrl(companyUrl);
+    if (companyId && industryByCompany) {
+      industry = industryByCompany.get(companyId) || '';
     }
 
     // ── 7. Location ──
@@ -362,60 +479,20 @@
     const lis = document.querySelectorAll(SEL.card);
     const cards = Array.from(lis).filter(li => li.querySelector(SEL.leadLink));
 
+    // Phase 3.5: Deep Fetch → resolve each UNIQUE company's industry via the
+    // Sales Navigator internal API (cached), then hand parseCard a lookup map.
+    let industryByCompany = null;
+    if (options.deepFetch) {
+      const companyIds = cards.map(li => {
+        const link = li.querySelector(SEL.company);
+        return link ? companyIdFromUrl(absUrl(attr(link, 'href'))) : '';
+      });
+      industryByCompany = await resolveIndustries(companyIds);
+    }
+
     const rows = [];
-
     for (const li of cards) {
-      let deepIndustry = '';
-      
-      // If Deep Fetch is enabled, manually hover over the company tab to trigger the hovercard load
-      if (options.deepFetch) {
-        const companyLink = li.querySelector(SEL.company);
-        if (companyLink) {
-          // Bring into view
-          companyLink.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          await sleep(150); // wait for scroll
-          
-          // Trigger React hover events
-          const hoverEvent = new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window });
-          const enterEvent = new MouseEvent('mouseenter', { bubbles: true, cancelable: true, view: window });
-          companyLink.dispatchEvent(hoverEvent);
-          companyLink.dispatchEvent(enterEvent);
-          
-          try {
-            // Wait for the specific hovercard description element to appear anywhere in document (LinkedIn portals them to the body)
-            const blurbEls = await waitForElements('.entity-hovercard [data-anonymize="company-blurb"], .entity-hovercard [data-anonymize="industry"], .entity-hovercard', 1, 2000);
-            
-            if (blurbEls && blurbEls.length > 0) {
-              // The hovercard is usually appended to the end of the body
-              const popup = blurbEls[blurbEls.length - 1].closest('.entity-hovercard') || blurbEls[blurbEls.length - 1];
-              
-              const specInd = popup.querySelector('[data-anonymize="industry"]');
-              if (specInd) {
-                deepIndustry = txt(specInd);
-              } else {
-                const blurb = popup.querySelector('[data-anonymize="company-blurb"]');
-                if (blurb) {
-                   // Often the blurb is 'Industry Name \n City, State \n Description'
-                   // We will just grab the first line if it looks like an industry
-                   const lines = txt(blurb).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                   if (lines.length > 0) deepIndustry = lines[0]; 
-                }
-              }
-            }
-          } catch (e) {
-            // Timeout reached, popup didn't load
-          }
-          
-          // Clean up hover to dismiss the card
-          companyLink.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true, view: window }));
-          companyLink.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true, view: window }));
-          
-          // Wait a tiny bit for the dismissing animation before scrolling to the next one
-          await sleep(150);
-        }
-      }
-
-      const result = parseCard(li, deepIndustry);
+      const result = parseCard(li, industryByCompany);
       if (!result) continue;
       rows.push(result.data);
     }
