@@ -16,8 +16,10 @@
 
   const DISCOVER = true; // set false once the parser is pinned
 
+  if (DISCOVER) { try { console.log('%c[SNX cap] injector active (MAIN world)', 'color:#16a34a;font-weight:bold'); } catch (e) {} }
+
   function isApiUrl(url) {
-    return /\/(sales-api|voyager)\/|graphql/i.test(String(url || ''));
+    return /(sales-api|voyager|graphql|salesApi|search|lead)/i.test(String(url || ''));
   }
 
   // Find a lead-like array anywhere shallow in the payload (top-level or under
@@ -57,15 +59,17 @@
     let path;
     try { path = new URL(url, location.origin).pathname; } catch (e) { path = String(url).slice(0, 90); }
     const arr = findLeadArray(json, 0);
-    const key = path + (arr ? ':leads' : '');
-    if (seen.has(key)) return;
-    seen.add(key);
     if (arr) {
+      // Always log lead arrays (per page) — this is the jackpot line.
       const sample = arr.find((x) => x && typeof x === 'object') || {};
-      console.log('%c[SNX url]', 'color:#eab308', 'LEADS @', path, 'count=', arr.length, 'keys=', Object.keys(sample));
-    } else if (/graphql/i.test(path) || /search/i.test(String(url))) {
-      console.log('%c[SNX url]', 'color:#eab308', path, '(api, no lead array found)');
+      console.log('%c[SNX url] LEADS @', 'color:#16a34a;font-weight:bold', path, 'count=', arr.length, 'keys=', Object.keys(sample));
+      return;
     }
+    // Otherwise log each unique API path once so the lead endpoint can't hide.
+    if (seen.has(path)) return;
+    seen.add(path);
+    const top = json && typeof json === 'object' ? Object.keys(json).slice(0, 12) : typeof json;
+    console.log('%c[SNX url]', 'color:#eab308', path, 'topKeys=', top);
   }
 
   const buffer = []; // recent captures, replayed if the content script loads late
