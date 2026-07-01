@@ -275,6 +275,120 @@
   }
 
   /* ═══════════════════════════════════════════════════
+   * LEAD-SEARCH API CAPTURE (isolated world)
+   *
+   * inject_capture.js (MAIN world) forwards Sales Navigator's own lead-search
+   * responses here. Each payload holds every lead for a page, so we prefer it
+   * over DOM scraping (which lazy-loads and can miss cards) and fall back to
+   * the DOM only if a clean capture isn't available.
+   * ═══════════════════════════════════════════════════ */
+  const SNX_CAP_DEBUG = true; // logs capture diagnostics to the page console
+  const dbgCap = (...a) => { if (SNX_CAP_DEBUG) console.log('%c[SNX cap]', 'color:#22c55e', ...a); };
+
+  const capturedPages = []; // { start, leads:[...], ts }
+
+  window.addEventListener('message', (e) => {
+    if (e.source !== window) return;
+    const d = e.data;
+    if (!d || d.__snxLeadCapture !== true) return;
+    try {
+      const start = parseStartOffset(d.url);
+      const leads = parseLeadSearchJson(d.json);
+      if (leads && leads.length) {
+        capturedPages.push({ start, leads, ts: Date.now() });
+        while (capturedPages.length > 20) capturedPages.shift();
+        dbgCap(`captured ${leads.length} leads (start=${start})`, d.url);
+      } else {
+        dbgCap('lead-search response seen but 0 leads parsed. top-level keys:',
+          d.json && typeof d.json === 'object' ? Object.keys(d.json) : typeof d.json, d.url);
+      }
+    } catch (err) {
+      dbgCap('parse error', String(err));
+    }
+  });
+
+  // Tell the MAIN-world capture script we're listening so it can replay any
+  // lead-search response that arrived before this script attached.
+  try { window.postMessage({ __snxReady: true }, window.location.origin); } catch (e) {}
+
+  function parseStartOffset(url) {
+    const m = String(url || '').match(/[?&(,]start[=:](\d+)/i);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  /** Pull the leads array out of an SN lead-search JSON payload. */
+  function parseLeadSearchJson(json) {
+    if (!json || typeof json !== 'object') return null;
+    const arr =
+      (Array.isArray(json.elements) && json.elements) ||
+      (json.data && Array.isArray(json.data.elements) && json.data.elements) ||
+      null;
+    if (!arr) return null;
+    return arr.map(leadFromElement).filter(Boolean);
+  }
+
+  /** Extract the Sales Navigator lead id from a lead element's urn. */
+  function leadIdFromElement(el) {
+    const urn = el.entityUrn || el.objectUrn || el.memberUrn || el.profileUrn || '';
+    let m = String(urn).match(/fs_salesProfile:\(([^,)]+)/);
+    if (m) return m[1];
+    m = String(urn).match(/:\(?([A-Za-z0-9_-]+)[,)]/) || String(urn).match(/:([A-Za-z0-9_-]+)$/);
+    return m ? m[1] : '';
+  }
+
+  function companyIdFromUrn(urn) {
+    const m = String(urn || '').match(/:(\d+)\)?$/) || String(urn || '').match(/(\d+)\s*$/);
+    return m ? m[1] : '';
+  }
+
+  /** Build a normalized row from one lead-search element (defensive). */
+  function leadFromElement(el) {
+    if (!el || typeof el !== 'object') return null;
+
+    const first = el.firstName || '';
+    const last = el.lastName || '';
+    let full = (el.fullName || el.formattedName || `${first} ${last}`).trim();
+    if (!full && !first && !last) return null;
+
+    const leadId = leadIdFromElement(el);
+    const linkedinUrl = leadId ? `https://www.linkedin.com/in/${leadId}` : '';
+
+    const pos = (Array.isArray(el.currentPositions) && el.currentPositions[0]) ||
+                el.currentPosition || {};
+    const title = pos.title || el.title || el.headline || '';
+    const companyName = pos.companyName || (pos.company && pos.company.name) || el.companyName || '';
+    const companyUrn = pos.companyUrn || (pos.company && pos.company.entityUrn) || el.companyUrn || '';
+    const industry = el.industry || (pos.company && pos.company.industry) || '';
+
+    let location = el.geoRegion || el.location || el.geographyLocation || '';
+    if (location && typeof location === 'object') location = location.displayName || location.name || '';
+
+    return {
+      first_name: first || full.split(/\s+/)[0] || '',
+      last_name: last || full.split(/\s+/).slice(1).join(' ') || '',
+      full_name: full,
+      linkedin_profile_url: linkedinUrl,
+      title,
+      company_name: companyName,
+      industry,
+      profile_location: typeof location === 'string' ? location : '',
+      __companyId: companyIdFromUrn(companyUrn)
+    };
+  }
+
+  /** Pick the captured leads for a given 1-based page (SN packs 25/page). */
+  function pickCapturedLeads(page) {
+    if (!capturedPages.length) return null;
+    const wantStart = page ? (page - 1) * 25 : null;
+    if (wantStart != null) {
+      for (let i = capturedPages.length - 1; i >= 0; i--) {
+        if (capturedPages[i].start === wantStart) return capturedPages[i].leads;
+      }
+    }
+    return capturedPages[capturedPages.length - 1].leads; // newest capture
+  }
+
+  /* ═══════════════════════════════════════════════════
    * SINGLE CARD PARSER
    * Extracts all visible fields from one <li> card.
    * ═══════════════════════════════════════════════════ */
@@ -494,19 +608,62 @@
   /* ═══════════════════════════════════════════════════
    * MAIN EXTRACTION PIPELINE
    * ═══════════════════════════════════════════════════ */
+  /**
+   * Build rows from Sales Navigator's captured lead-search payload, or return
+   * null if no clean capture is available (→ caller falls back to DOM scrape).
+   */
+  async function buildRowsFromCapture(options) {
+    // The page fetches results on navigation; give the capture a moment to land.
+    let leads = pickCapturedLeads(options.page);
+    for (let i = 0; !leads && i < 12; i++) { await sleep(250); leads = pickCapturedLeads(options.page); }
+    if (!leads || !leads.length) return null;
+
+    // Quality gate: trust the capture only if every lead parsed to a real name
+    // and profile URL, so a shape mismatch can never export half-parsed junk.
+    const clean = leads.filter(l => l.full_name && !/^linkedin member$/i.test(l.full_name));
+    const withUrl = clean.filter(l => l.linkedin_profile_url);
+    if (!clean.length || withUrl.length < clean.length) {
+      dbgCap(`capture rejected by quality gate: ${withUrl.length}/${clean.length} rows have URLs`);
+      return null;
+    }
+
+    // Industry: use any value already in the payload; otherwise resolve via the
+    // company API (Deep Fetch), same as the DOM path.
+    let industryByCompany = null;
+    if (options.deepFetch) {
+      const ids = clean.map(l => l.__companyId).filter(Boolean);
+      industryByCompany = await resolveIndustries(ids);
+    }
+
+    return clean.map(l => {
+      const industry = l.industry ||
+        (industryByCompany && l.__companyId ? (industryByCompany.get(l.__companyId) || '') : '');
+      const { __companyId, ...row } = l;
+      return { ...row, industry };
+    });
+  }
+
   async function extractPageRows(options = {}) {
     // Phase 1: Wait for at least one lead card using MutationObserver
     await waitForElements(`${SEL.card} ${SEL.leadLink}`, 1, 8000);
 
-    // Phase 2: Scroll to lazy-load all cards
+    // Phase 2 (preferred): use SN's captured lead-search payload — it holds
+    // every lead for the page and is immune to DOM lazy-loading.
+    const capRows = await buildRowsFromCapture(options);
+    if (capRows && capRows.length) {
+      dbgCap(`page ${options.page || '?'} → ${capRows.length} rows from API capture`);
+      return { rows: capRows };
+    }
+
+    // Phase 3 (fallback): DOM scrape with the target-aware scroll loader.
+    dbgCap(`page ${options.page || '?'} → no clean capture, using DOM scrape`);
     await scrollToLoadAllCards();
 
-    // Phase 3: Extract all cards
     const lis = document.querySelectorAll(SEL.card);
     const cards = Array.from(lis).filter(li => li.querySelector(SEL.leadLink));
 
-    // Phase 3.5: Deep Fetch → resolve each UNIQUE company's industry via the
-    // Sales Navigator internal API (cached), then hand parseCard a lookup map.
+    // Deep Fetch → resolve each UNIQUE company's industry via the SN internal
+    // API (cached), then hand parseCard a lookup map.
     let industryByCompany = null;
     if (options.deepFetch) {
       const companyIds = cards.map(li => {

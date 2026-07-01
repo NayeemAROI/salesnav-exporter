@@ -284,7 +284,7 @@ async function _stepOnceInner() {
 
   let extracted;
   try {
-    extracted = await sendToTab(tab, { type: "EXTRACT_PAGE", options: { deepFetch: state.deepFetch } });
+    extracted = await sendToTab(tab, { type: "EXTRACT_PAGE", options: { deepFetch: state.deepFetch, page: (state.pagesDone || 0) + 1 } });
   } catch (e) {
     await setState({ status: `paused_error: ${String(e)}`, running: false });
     return;
