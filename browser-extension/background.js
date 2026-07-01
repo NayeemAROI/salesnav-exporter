@@ -54,33 +54,11 @@ async function setState(patch) {
     const count = (next.rows || []).length;
     if (count > 0) {
       chrome.action.setBadgeText({ text: String(count) });
-      chrome.action.setBadgeBackgroundColor({ color: '#00d4ff' });
+      chrome.action.setBadgeBackgroundColor({ color: '#f97316' });
     } else {
       chrome.action.setBadgeText({ text: '' });
     }
   } catch (e) {}
-
-  // Tab Pinning logic (Disabled per user request)
-  /*
-  try {
-    // 1. Search Scraper pinning (running -> !running)
-    if (next.tabId) {
-      if (patch.running === true && !s.running) {
-        chrome.tabs.update(next.tabId, { pinned: true }).catch(() => {});
-      } else if (patch.running === false && s.running) {
-        chrome.tabs.update(next.tabId, { pinned: false }).catch(() => {});
-      }
-    }
-    // 2. Profile Scanner pinning (scanRunning -> !scanRunning)
-    if (next.scanTabId) {
-      if (patch.scanRunning === true && !s.scanRunning) {
-        chrome.tabs.update(next.scanTabId, { pinned: true }).catch(() => {});
-      } else if (patch.scanRunning === false && s.scanRunning) {
-        chrome.tabs.update(next.scanTabId, { pinned: false }).catch(() => {});
-      }
-    }
-  } catch (e) {}
-  */
 
   return next;
 }
@@ -198,6 +176,32 @@ async function pushHistory(entry) {
 }
 
 
+// Download a string as a file using a Blob object URL. Scales to large
+// exports (no URL-length limit, no full-string-in-a-URL memory blowup) and
+// works inside the MV3 service worker. Revokes the URL once the download
+// settles so it isn't leaked.
+async function downloadBlob(content, mimeType, filename, saveAs = false) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  try {
+    const downloadId = await chrome.downloads.download({ url, filename, saveAs });
+    const revoke = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+    chrome.downloads.onChanged.addListener(function onChanged(delta) {
+      if (delta.id === downloadId && delta.state &&
+          (delta.state.current === 'complete' || delta.state.current === 'interrupted')) {
+        chrome.downloads.onChanged.removeListener(onChanged);
+        revoke();
+      }
+    });
+    // Safety net in case the onChanged event is missed.
+    setTimeout(revoke, 60000);
+    return downloadId;
+  } catch (e) {
+    try { URL.revokeObjectURL(url); } catch (_) {}
+    throw e;
+  }
+}
+
 async function downloadData(rows, format, mode, filename, kind) {
   let content = '';
   let mimeType = '';
@@ -212,13 +216,7 @@ async function downloadData(rows, format, mode, filename, kind) {
     if (!filename.endsWith('.csv')) filename = filename.replace(/\.json$/i, '.csv');
   }
 
-  const urlToDownload = `data:${mimeType},` + encodeURIComponent(content);
-
-  const downloadId = await chrome.downloads.download({
-    url: urlToDownload,
-    filename,
-    saveAs: false
-  });
+  const downloadId = await downloadBlob(content, mimeType, filename, false);
 
   await pushHistory({
     ts: Date.now(),
@@ -918,9 +916,7 @@ async function downloadScannerData(results) {
     ].join(","))
   );
   const csv = lines.join("\n");
-  const url = `data:text/csv;charset=utf-8,` + encodeURIComponent(csv);
-  const id = await chrome.downloads.download({ url, filename: "profile_scan_results.csv", saveAs: true });
-  return id;
+  return downloadBlob(csv, 'text/csv;charset=utf-8', 'profile_scan_results.csv', true);
 }
 
 async function scheduleNextStep() {
@@ -1638,9 +1634,6 @@ async function downloadCompanyScannerData(results) {
   }
 
   const csv = lines.join('\n');
-  const url = `data:text/csv;charset=utf-8,` + encodeURIComponent(csv);
   const filename = `company_scan_${new Date().toISOString().split('T')[0]}.csv`;
-
-  const id = await chrome.downloads.download({ url, filename, saveAs: true });
-  return id;
+  return downloadBlob(csv, 'text/csv;charset=utf-8', filename, true);
 }
