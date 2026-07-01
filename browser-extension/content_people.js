@@ -211,10 +211,15 @@
   }
 
   // Flip to true to print per-request diagnostics to the page console.
-  const SNX_DEBUG = true;
+  const SNX_DEBUG = false;
   const dbg = (...a) => { if (SNX_DEBUG) console.log('%c[SNX industry]', 'color:#f97316', ...a); };
 
-  /** Fetch (and cache) a single company's industry via the SN company API. */
+  /**
+   * Fetch (and cache) a single company's industry via LinkedIn's Voyager
+   * organization endpoint. Confirmed on live sessions: this returns the
+   * canonical industry (companyIndustries[].localizedName). The sales-api
+   * company endpoint 400s / omits industry, so we don't call it.
+   */
   async function fetchCompanyIndustry(companyId) {
     if (!companyId) return '';
     if (industryCache.has(companyId)) return industryCache.get(companyId);
@@ -228,10 +233,8 @@
 
     const encId = encodeURIComponent(companyId);
     const urls = [
-      `https://www.linkedin.com/sales-api/salesApiCompanies/${encId}?decorationId=com.linkedin.sales.deco.desktop.company.FullCompany-16`,
-      `https://www.linkedin.com/sales-api/salesApiCompanies/${encId}`,
       `https://www.linkedin.com/voyager/api/organization/companies/${encId}`,
-      `https://www.linkedin.com/voyager/api/entities/companies/${encId}`,
+      `https://www.linkedin.com/voyager/api/entities/companies/${encId}`, // legacy fallback
     ];
 
     let industry = '';
@@ -241,8 +244,7 @@
         const ct = res.headers.get('content-type') || '';
         if (!res.ok) { dbg('HTTP', res.status, url); continue; }
         if (!ct.includes('json')) { dbg('non-JSON', ct, url); continue; }
-        const json = await res.json();
-        industry = findIndustryInJson(json);
+        industry = findIndustryInJson(await res.json());
         dbg(industry ? `OK "${industry}"` : 'JSON but no industry field', url);
         if (industry) break;
       } catch (e) {
