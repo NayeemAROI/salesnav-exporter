@@ -406,20 +406,17 @@
     <div class="tab" data-tab="companyScannerTab">Company Scanner</div>
   </div>
 
-  <!-- Current Page Only — kept as a user choice, surfaced on top -->
-  <div id="pageScopeBar" style="background: var(--bg-card); border-bottom: 1px solid var(--glass-border); padding: 10px 16px;">
-    <div class="setting-row" style="padding:0;">
+  <!-- User choices surfaced on top — kept on one line to save space -->
+  <div id="pageScopeBar" style="display:flex; gap:16px; align-items:center; background: var(--bg-card); border-bottom: 1px solid var(--glass-border); padding: 10px 16px;">
+    <div class="setting-row" style="flex:1; padding:0; gap:8px;">
       <span class="setting-label">Current Page Only</span>
       <label class="toggle-switch">
         <input type="checkbox" id="currentPageOnly" />
         <span class="slider round"></span>
       </label>
     </div>
-    <div class="setting-row" style="padding:8px 0 0;">
-      <span class="setting-label" style="display:flex; flex-direction:column; gap:2px;">
-        Fetch Website (companies)
-        <span style="font-size:9px; color:var(--text-faint); font-weight:normal;">Slower — looks up each company's site via LinkedIn.</span>
-      </span>
+    <div class="setting-row" style="flex:1; padding:0; gap:8px;">
+      <span class="setting-label" title="Slower — looks up each company's website via LinkedIn (company searches).">Fetch Website</span>
       <label class="toggle-switch">
         <input type="checkbox" id="companyDeepBtn" />
         <span class="slider round"></span>
