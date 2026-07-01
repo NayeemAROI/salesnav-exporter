@@ -242,56 +242,45 @@
 
   async function scrollToLoadAllCards() {
     const container = findScrollableResultsContainer();
-    const STEP = 400;       // pixels per scroll step
-    const STEP_DELAY = 300; // ms between each scroll step
-    const SETTLE_DELAY = 600;
+    const STEP = 300; // small steps + dwell so each card's sections load
+    const getScrollHeight = () => container ? container.scrollHeight : document.documentElement.scrollHeight;
+    const getClient = () => container ? container.clientHeight : window.innerHeight;
+    const setScrollTop = (v) => { if (container) container.scrollTop = v; else window.scrollTo(0, v); };
+    const maxScroll = () => Math.max(getScrollHeight() - getClient(), 0);
 
-    // Phase 1: Incremental scroll to trigger lazy-loading IntersectionObservers
-    const getScrollHeight = () => container ? container.scrollHeight : document.body.scrollHeight;
-    const getScrollTop = () => container ? container.scrollTop : window.scrollY;
-    const setScrollTop = (v) => {
-      if (container) container.scrollTop = v;
-      else window.scrollTo(0, v);
-    };
+    // Sales Navigator packs 25 results per page except the last. If "Next" is
+    // enabled this is a full page → wait for 25 and never stop short. On the
+    // last page Next is gone → settle when a full pass adds nothing new.
+    const EXPECTED = findNextButton() ? 25 : 0;
+    const DEADLINE = Date.now() + 40000; // hard cap so we can never hang
 
-    let currentPos = 0;
-    setScrollTop(0);
-    await sleep(200);
-
-    // Scroll down step-by-step
-    for (let i = 0; i < 80; i++) {
-      currentPos += STEP;
-      const maxScroll = getScrollHeight();
-      if (currentPos >= maxScroll) {
-        setScrollTop(maxScroll);
-        await sleep(STEP_DELAY);
-        break;
-      }
-      setScrollTop(currentPos);
-      await sleep(STEP_DELAY);
-    }
-
-    // Phase 2: Wait for any remaining lazy content, then verify stability
-    await sleep(SETTLE_DELAY);
-    let stable = 0;
-    let lastCount = countCompanyCards();
-
-    for (let i = 0; i < 10; i++) {
-      // Scroll to absolute bottom again to catch any new content
-      setScrollTop(getScrollHeight());
-      await sleep(500);
-
-      const count = countCompanyCards();
-      if (count === lastCount) stable++;
-      else stable = 0;
-      lastCount = count;
-
-      if (stable >= 2) break;
-    }
-
-    // Reset to top
     setScrollTop(0);
     await sleep(300);
+
+    let prevPassCount = -1;
+    while (Date.now() < DEADLINE) {
+      // One full, gentle top→bottom pass — dwell at every step (no early exit)
+      // so each card's sections have time to lazy-load.
+      let pos = 0, maxS = maxScroll();
+      while (pos < maxS && Date.now() < DEADLINE) {
+        pos += STEP;
+        setScrollTop(Math.min(pos, maxS)); // never overshoot past the bottom
+        await sleep(320);
+        maxS = maxScroll();                 // list may grow as rows load
+      }
+      await sleep(400); // settle at the bottom
+
+      const count = countCompanyCards();
+      if (EXPECTED && count >= EXPECTED) break;   // full page: every card present
+      if (count === prevPassCount) break;         // last page: a pass added nothing
+      prevPassCount = count;
+
+      setScrollTop(0); // re-walk from the top for any still-missing rows
+      await sleep(300);
+    }
+
+    setScrollTop(0);
+    await sleep(200);
   }
 
   /* ═══════════════════════════════════════════════════
