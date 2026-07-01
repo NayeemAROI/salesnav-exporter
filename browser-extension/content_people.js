@@ -579,27 +579,25 @@
 
     let prevPassCount = -1;
     while (Date.now() < DEADLINE) {
-      // One slow top→bottom pass, letting each chunk lazy-load as we go.
+      // One full, gentle top→bottom pass. We deliberately DON'T early-exit when
+      // the card count is reached — walking the whole list with a dwell at each
+      // step is what gives every card's sections time to lazy-load.
       let pos = 0, maxS = maxScroll(containers);
       while (pos < maxS && Date.now() < DEADLINE) {
         pos += STEP;
-        scrollTo(containers, pos);
-        await sleep(320); // dwell so each card's sections can render
-        if (EXPECTED && countCards() >= EXPECTED) break; // full page fully loaded
-        maxS = maxScroll(containers);
+        scrollTo(containers, Math.min(pos, maxS)); // never overshoot past the bottom
+        await sleep(320);                          // dwell so sections can render
+        maxS = maxScroll(containers);              // list may grow as rows load
       }
-
-      // Nudge past the bottom to trigger any trailing cards.
-      scrollTo(containers, maxScroll(containers) + 3000);
-      await sleep(450);
+      await sleep(400); // settle at the bottom
 
       const count = countCards();
-      if (EXPECTED && count >= EXPECTED) break;   // got the whole page
-      if (count === prevPassCount) break;         // a full pass added nothing → done
+      if (EXPECTED && count >= EXPECTED) break;   // full page: every card present
+      if (count === prevPassCount) break;         // last page: a pass added nothing
       prevPassCount = count;
 
-      scrollTo(containers, 0); // re-walk from the top so slow/upper cards reload
-      await sleep(320);
+      scrollTo(containers, 0); // re-walk from the top for any still-missing rows
+      await sleep(300);
     }
 
     scrollTo(containers, 0);
