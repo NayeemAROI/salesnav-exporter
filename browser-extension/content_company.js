@@ -214,9 +214,7 @@
   // Country = last comma-separated segment of the HQ location
   // ("Kuala Lumpur, Malaysia" → "Malaysia"; "Singapore" → "Singapore").
   function deriveCountry(loc) {
-    if (!loc) return '';
-    const parts = String(loc).split(',').map((s) => s.trim()).filter(Boolean);
-    return parts.length ? parts[parts.length - 1] : '';
+    return String(loc || '').split(',').map((s) => s.trim()).filter(Boolean).pop() || '';
   }
 
   function extractIndustry(li, companyName, companyLocation, lines) {
