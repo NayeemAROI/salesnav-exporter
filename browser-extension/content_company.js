@@ -365,6 +365,10 @@
 
   function findWebsiteInJson(node, depth = 0) {
     if (!node || depth > 6) return '';
+    if (Array.isArray(node)) {
+      for (const x of node) { const r = findWebsiteInJson(x, depth + 1); if (r) return r; }
+      return '';
+    }
     if (typeof node === 'object') {
       for (const k in node) {
         if (/^(website|websiteurl|companywebsite|externalurl)$/i.test(k)) {
@@ -380,6 +384,10 @@
 
   function findIndustryInJson(node, depth = 0) {
     if (!node || depth > 6) return '';
+    if (Array.isArray(node)) {
+      for (const x of node) { const r = findIndustryInJson(x, depth + 1); if (r) return r; }
+      return '';
+    }
     if (typeof node === 'object') {
       if (typeof node.industry === 'string' && node.industry.trim()) return node.industry.trim();
       for (const key of ['companyIndustries', 'industries', 'industryV2']) {
@@ -398,6 +406,10 @@
 
   function findCountryInJson(node, depth = 0) {
     if (!node || depth > 6) return '';
+    if (Array.isArray(node)) {
+      for (const x of node) { const r = findCountryInJson(x, depth + 1); if (r) return r; }
+      return '';
+    }
     if (typeof node === 'object') {
       const hq = node.headquarter || node.headquarters;
       if (hq && typeof hq === 'object') {
