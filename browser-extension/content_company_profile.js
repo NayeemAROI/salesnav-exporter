@@ -10,9 +10,27 @@ function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
+const NAME_SEL =
+  'h1.org-top-card-summary__title, ' +
+  'h1.t-24, ' +
+  '.org-top-card-summary-info-list + h1, ' +
+  'main h1, ' +
+  '.top-card-layout__title, ' +
+  '[data-anonymize="company-name"], ' +
+  'h1';
+
 // ─── Main Company Page Extraction ───
 async function extractCompanyMain() {
-  await sleep(3000); // Give React time to render
+  // Poll until the company name AND the About details are actually rendered,
+  // then extract right away — no fixed "give React time" sleep.
+  // ponytail: readiness = h1 + details text, 10s cap; on timeout extract whatever is there
+  const ready = () => {
+    const nameEl = document.querySelector(NAME_SEL);
+    if (!nameEl || !nameEl.innerText.trim()) return false;
+    return !!document.querySelector('dt') ||
+      /\b(Website|Industry|Company size|Headquarters)\b/.test(document.body?.innerText || '');
+  };
+  for (let i = 0; i < 40 && !ready(); i++) await sleep(250);
 
   let companyName = '';
   let website = '';
@@ -29,21 +47,8 @@ async function extractCompanyMain() {
 
   try {
     // ─── Company Name ───
-    // Try multiple selectors for the company name
-    let nameEl = null;
-    for (let i = 0; i < 16; i++) {
-      nameEl = document.querySelector(
-        'h1.org-top-card-summary__title, ' +
-        'h1.t-24, ' +
-        '.org-top-card-summary-info-list + h1, ' +
-        'main h1, ' +
-        '.top-card-layout__title, ' +
-        '[data-anonymize="company-name"], ' +
-        'h1'
-      );
-      if (nameEl && nameEl.innerText.trim()) break;
-      await sleep(250);
-    }
+    // (readiness poll above already waited for this)
+    const nameEl = document.querySelector(NAME_SEL);
     if (nameEl) companyName = nameEl.innerText.trim();
 
     // ─── LinkedIn URL ───

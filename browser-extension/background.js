@@ -1416,8 +1416,9 @@ async function compScanNext() {
 
   const s = await getState();
   if (s.compScanRunning && s.compScanIndex < (s.compScanQueue || []).length) {
-    // Random delay 3-8s between companies
-    const delayMs = 3000 + Math.floor(Math.random() * 5000);
+    // Small random jitter between companies so requests don't look machine-timed.
+    // ponytail: was 3-8s; bump back up if LinkedIn starts throwing checkpoints
+    const delayMs = 500 + Math.floor(Math.random() * 1000);
     await sleep(delayMs);
     await scheduleNextCompScan();
   }
@@ -1470,42 +1471,50 @@ async function _compScanNextInner() {
         try { scanTab = await chrome.tabs.get(state.compScanTabId); } catch (e) {}
       }
 
+      // Remember the URL we're navigating away from, so we can tell when the
+      // new navigation has committed (tab.url flips to the new page).
+      let beforeUrl = '';
       if (!scanTab) {
         scanTab = await chrome.tabs.create({ url: companyUrl, active: false });
         await setState({ compScanTabId: scanTab.id });
       } else {
+        beforeUrl = scanTab.url || '';
         await chrome.tabs.update(scanTab.id, { url: companyUrl });
       }
 
       const tabId = scanTab.id;
 
-      // Wait for page to load
+      // Wait only until the navigation COMMITS (url switches to the new company) —
+      // not for the full page load. The content script polls the DOM itself and
+      // returns as soon as the info is visible.
+      // ponytail: was 15s status==='complete' poll + fixed 3s SPA sleep
       await setState({ compScanStatus: `Loading company ${state.compScanIndex + 1} of ${state.compScanQueue.length}` });
 
-      for (let i = 0; i < 30; i++) { // Max 15 seconds
-        await sleep(500);
+      for (let i = 0; i < 27; i++) { // Max ~8s for the navigation to commit
         try {
           const t = await chrome.tabs.get(tabId);
-          if (t.status === 'complete') break;
+          if (t.url && t.url !== beforeUrl && t.url.includes('linkedin.com')) break;
         } catch (e) {
           await setState({ compScanRunning: false, compScanStatus: "error: Tab closed", compScanEndedAt: Date.now() });
           return;
         }
+        await sleep(300);
       }
-
-      // Extra wait for SPA to render
-      await sleep(3000);
 
       await setState({ compScanStatus: `Extracting company ${state.compScanIndex + 1} of ${state.compScanQueue.length}` });
 
-      // Inject content script
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId },
-          files: ['content_company_profile.js']
-        });
-      } catch(e) {
-        log('Failed to inject company content script:', e);
+      // Inject content script (retry briefly — injection can race the commit)
+      for (let i = 0; i < 10; i++) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['content_company_profile.js']
+          });
+          break;
+        } catch (e) {
+          if (i === 9) log('Failed to inject company content script:', e);
+          await sleep(300);
+        }
       }
 
       // Extract data
