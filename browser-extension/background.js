@@ -49,7 +49,7 @@ async function setState(patch) {
   const s = await getState();
   const next = { ...s, ...patch };
   await chrome.storage.local.set({ [STATE_KEY]: next });
-  
+
   try {
     const count = (next.rows || []).length;
     if (count > 0) {
@@ -69,10 +69,10 @@ function sleep(ms) {
 
 function randPageDelayMs(speed) {
   switch (speed) {
-    case 'safe':   return 8000 + Math.floor(Math.random() * 10000); // 8-18s
-    case 'medium': return 4000 + Math.floor(Math.random() * 6000);  // 4-10s
+    case 'safe': return 8000 + Math.floor(Math.random() * 10000); // 8-18s
+    case 'medium': return 4000 + Math.floor(Math.random() * 6000); // 4-10s
     case 'fast':
-    default:       return 1000 + Math.floor(Math.random() * 4000);  // 1-5s
+    default: return 1000 + Math.floor(Math.random() * 4000); // 1-5s
   }
 }
 
@@ -97,8 +97,21 @@ async function inferModeFromTab(tab) {
 
 async function ensureContentScript(tab) {
   if (!tab?.id) return;
-  const mode = await inferModeFromTab(tab);
-  const file = mode === 'company' ? 'content_company.js' : 'content_people.js';
+  // Scanner calls pass { id } only (no url), so re-fetch the tab to read its
+  // live URL. Without this we'd fall back to 'people' and inject the wrong
+  // content script onto a /in/ profile page during a retry.
+  let liveUrl = tab.url || '';
+  try { liveUrl = (await chrome.tabs.get(tab.id))?.url || liveUrl; } catch (e) {}
+
+  let file;
+  if (/linkedin\.com\/in\//.test(liveUrl)) {
+    file = 'content_profile.js'; // deep-scanner profile page
+  } else if ((await inferModeFromTab({ url: liveUrl })) === 'company') {
+    file = 'content_company.js';
+  } else {
+    file = 'content_people.js';
+  }
+
   try {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -174,7 +187,6 @@ async function pushHistory(entry) {
   await chrome.storage.local.set({ [HISTORY_KEY]: trimmed });
   log('history+', entry);
 }
-
 
 // Download a string as a file. MV3 service workers do NOT expose
 // URL.createObjectURL (it was removed), so Blob object URLs are impossible
@@ -343,7 +355,7 @@ async function _stepOnceInner() {
     if (rows.length > 0) {
       await pushHistory({ ts: Date.now(), kind: 'auto', mode: latest.mode || 'people', rows: rows.length });
     }
-    
+
     let stopStatus = latest.currentPageOnly ? "done_current_page_only" : "done_reached_max_profiles";
     await setState({ running: false, status: stopStatus });
     return;
@@ -403,9 +415,9 @@ async function _stepOnceInner() {
 }
 
 /** Schedule the next stepOnce() call. Uses setTimeout to avoid blocking the service worker. */
-// ═══════════════════════════════════════════════════
+// ═════════════════════════════════════
 // DEEP PROFILE SCANNER LOGIC
-// ═══════════════════════════════════════════════════
+// ═════════════════════════════════════
 let _scanning = false;
 let _cancelCurrentScan = null;
 
@@ -418,7 +430,6 @@ async function scanNext() {
     _scanning = false;
   }
 }
-
 
 // Convert activity time string to days for granular comparison
 function timeStringToDays(t) {
@@ -436,21 +447,21 @@ function timeStringToDays(t) {
 
 function getNameForUrl(url, rows) {
   if (!url || !rows || !Array.isArray(rows)) return 'Unknown';
-  
+
   let match = rows.find(r => r.linkedin_profile_url === url);
   if (match && match.full_name) return match.full_name;
-  
+
   // Try matching by lead ID or public ID
   const leadId = url.match(/\/sales\/lead\/([^,/?#]+)/)?.[1];
   const publicId = url.match(/\/in\/([^/?#]+)/)?.[1];
-  
+
   if (leadId || publicId) {
     match = rows.find(r => {
       if (!r.linkedin_profile_url) return false;
       return r.linkedin_profile_url.includes(leadId || publicId);
     });
   }
-  
+
   return (match && match.full_name) ? match.full_name : '';
 }
 
@@ -474,12 +485,12 @@ function upsertResult(resultsList, newResult) {
 async function _scanNextInner() {
   const state = await getState();
   if (!state.scanRunning) return;
-  
+
   if (state.scanIndex >= (state.scanQueue || []).length) {
     if (state.scanTabId) {
-        // We no longer close the tab automatically so the user can see the final page
+      // We no longer close the tab automatically so the user can see the final page
     }
-    
+
     chrome.notifications.create({
       type: 'basic',
       iconUrl: 'icon128.png', // Assuming default extension icon
@@ -493,7 +504,7 @@ async function _scanNextInner() {
 
   const url = state.scanQueue[state.scanIndex];
   let skipDelay = false;
-  await setState({ 
+  await setState({
     scanStatus: `Scanning profile ${state.scanIndex + 1} of ${state.scanQueue.length}`
   });
 
@@ -521,87 +532,87 @@ async function _scanNextInner() {
       // 1. Get or Create a dedicated Scanner Tab
       let scanTab = null;
       if (state.scanTabId) {
-          try { scanTab = await chrome.tabs.get(state.scanTabId); } catch (e) {}
+        try { scanTab = await chrome.tabs.get(state.scanTabId); } catch (e) {}
       }
-      
-      if (!scanTab) {
-          scanTab = await chrome.tabs.create({ url: baseProfileUrl, active: false });
-          await setState({ scanTabId: scanTab.id });
-      } else {
-          await chrome.tabs.update(scanTab.id, { url: baseProfileUrl });
-      }
-      
-      const tabId = scanTab.id;
-      
-      async function isContentLoaded(tId, loadType) {
-         try {
-             // For main profile, check for headline. For activity, check for the feed container or empty state msg.
-             const selector = loadType === 'activity' 
-                ? '.profile-creator-shared-feed-update__container, .feed-shared-update-v2, .occludable-update, .artdeco-empty-state' 
-                : 'h1.text-heading-xlarge, .ph5 h1, .pv-top-card h1, main h1';
 
-             const res = await chrome.scripting.executeScript({
-                 target: { tabId: tId },
-                 func: (sel) => !!document.querySelector(sel) || document.body.innerText.includes("hasn't posted"),
-                 args: [selector]
-             });
-             return res[0]?.result === true;
-         } catch(e) { return false; }
+      if (!scanTab) {
+        scanTab = await chrome.tabs.create({ url: baseProfileUrl, active: false });
+        await setState({ scanTabId: scanTab.id });
+      } else {
+        await chrome.tabs.update(scanTab.id, { url: baseProfileUrl });
+      }
+
+      const tabId = scanTab.id;
+
+      async function isContentLoaded(tId, loadType) {
+        try {
+          // For main profile, check for headline. For activity, check for the feed container or empty state msg.
+          const selector = loadType === 'activity'
+            ? '.profile-creator-shared-feed-update__container, .feed-shared-update-v2, .occludable-update, .artdeco-empty-state'
+            : 'h1.text-heading-xlarge, .ph5 h1, .pv-top-card h1, main h1';
+
+          const res = await chrome.scripting.executeScript({
+            target: { tabId: tId },
+            func: (sel) => !!document.querySelector(sel) || document.body.innerText.includes("hasn't posted"),
+            args: [selector]
+          });
+          return res[0]?.result === true;
+        } catch(e) { return false; }
       }
 
       // Helper: wait up to maxWaitMs for the specific content to become visible
       async function waitForLoad(maxWaitMs, loadType) {
-          for (let i = 0; i < maxWaitMs / 500; i++) {
-              await sleep(500);
-              try {
-                  const t = await chrome.tabs.get(tabId);
-                  if (await isContentLoaded(tabId, loadType)) return true;
-                  if (t.status === 'complete') return true;
-              } catch (e) { return false; /* Tab closed */ }
-          }
-          return false;
+        for (let i = 0; i < maxWaitMs / 500; i++) {
+          await sleep(500);
+          try {
+            const t = await chrome.tabs.get(tabId);
+            if (await isContentLoaded(tabId, loadType)) return true;
+            if (t.status === 'complete') return true;
+          } catch (e) { return false; /* Tab closed */ }
+        }
+        return false;
       }
 
       // Helper: hard reload (bypass cache = Ctrl+Shift+R equivalent) then wait
       async function hardReloadAndWait(maxWaitMs, loadType) {
-          try { await chrome.tabs.reload(tabId, { bypassCache: true }); } catch(e){}
-          return await waitForLoad(maxWaitMs, loadType);
+        try { await chrome.tabs.reload(tabId, { bypassCache: true }); } catch(e){}
+        return await waitForLoad(maxWaitMs, loadType);
       }
 
       await setState({ scanStatus: `Loading profile ${state.scanIndex + 1} of ${state.scanQueue.length}` });
       let loaded = await waitForLoad(15000, 'main'); // 15s first attempt
-      
+
       if (!loaded) {
-          // Hard reload (bypass cache) at 15s mark
-          await setState({ scanStatus: `Slow load — hard reloading profile ${state.scanIndex + 1} (cache cleared)...` });
-          loaded = await hardReloadAndWait(15000, 'main'); // 15s second attempt = 30s total
-          
-          if (!loaded) {
-              // Still stuck after 30s: auto-skip this profile instead of pausing the whole scan
-              throw new Error('AUTO_SKIP_LOAD_FAIL');
-          }
+        // Hard reload (bypass cache) at 15s mark
+        await setState({ scanStatus: `Slow load — hard reloading profile ${state.scanIndex + 1} (cache cleared)...` });
+        loaded = await hardReloadAndWait(15000, 'main'); // 15s second attempt = 30s total
+
+        if (!loaded) {
+          // Still stuck after 30s: auto-skip this profile instead of pausing the whole scan
+          throw new Error('AUTO_SKIP_LOAD_FAIL');
+        }
       }
-      
+
       await setState({ scanStatus: `Scanning profile ${state.scanIndex + 1} of ${state.scanQueue.length}` });
 
       // Poll tab URL to wait for LinkedIn's Single Page App router to redirect UID -> Public Name
       let finalUrl = baseProfileUrl;
       for (let i = 0; i < 20; i++) { // Max wait 10 seconds
-          await sleep(500);
-          try {
-              const loadedTab = await chrome.tabs.get(tabId);
-              // Grab the name from the tab title as soon as it's available — survives
-              // URN URLs (/in/<leadId>) and manual-paste scans where state.rows is empty.
-              const tn = nameFromTitle(loadedTab?.title);
-              if (tn && !currentName) currentName = tn;
-              if (loadedTab && loadedTab.url && loadedTab.url !== baseProfileUrl && !loadedTab.url.includes('linkedin.com/feed')) {
-                  finalUrl = loadedTab.url;
-                  break;
-              }
-          } catch (e) {
-              await setState({ scanRunning: false, scanStatus: "error: Scanner tab was closed", scanEndedAt: Date.now() });
-              return;
+        await sleep(500);
+        try {
+          const loadedTab = await chrome.tabs.get(tabId);
+          // Grab the name from the tab title as soon as it's available — survives
+          // URN URLs (/in/<leadId>) and manual-paste scans where state.rows is empty.
+          const tn = nameFromTitle(loadedTab?.title);
+          if (tn && !currentName) currentName = tn;
+          if (loadedTab && loadedTab.url && loadedTab.url !== baseProfileUrl && !loadedTab.url.includes('linkedin.com/feed')) {
+            finalUrl = loadedTab.url;
+            break;
           }
+        } catch (e) {
+          await setState({ scanRunning: false, scanStatus: "error: Scanner tab was closed", scanEndedAt: Date.now() });
+          return;
+        }
       }
       // Add a small buffer after the redirect is detected to allow DOM to render
       await sleep(1500);
@@ -617,7 +628,7 @@ async function _scanNextInner() {
         finalPublicUrl += '/';
       }
       currentLink = finalPublicUrl; // Update currentLink after final URL is determined
-      
+
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tabId },
@@ -629,16 +640,16 @@ async function _scanNextInner() {
       try {
         const res = await sendToTab({id: tabId}, { type: 'EXTRACT_PROFILE_MAIN' });
         if (res?.ok && res.data) {
-            mainData = res.data;
-            if (typeof mainData.connectionCount === 'string' && mainData.connectionCount.includes('500+')) {
-               mainData.connectionCountInt = Math.max(mainData.connectionCountInt || 0, 500);
-            }
-            // Use extracted name if found, otherwise keep the one we found earlier
-            if (mainData.name) {
-              currentName = mainData.name;
-            } else {
-              mainData.name = currentName;
-            }
+          mainData = res.data;
+          if (typeof mainData.connectionCount === 'string' && mainData.connectionCount.includes('500+')) {
+            mainData.connectionCountInt = Math.max(mainData.connectionCountInt || 0, 500);
+          }
+          // Use extracted name if found, otherwise keep the one we found earlier
+          if (mainData.name) {
+            currentName = mainData.name;
+          } else {
+            mainData.name = currentName;
+          }
         }
       } catch (e) {}
 
@@ -653,111 +664,111 @@ async function _scanNextInner() {
       let checkActivity = false;
 
       if (mainData.connectionCountInt >= 5000) {
-         status = 'active'; // 5000+ connections/followers: treat as active, skip activity checks
-         checkActivity = false;
-         finalActivityTime = 'N/A';
-         finalActivityType = '5000+';
+        status = 'active'; // 5000+ connections/followers: treat as active, skip activity checks
+        checkActivity = false;
+        finalActivityTime = 'N/A';
+        finalActivityType = '5000+';
       } else if (!isActivityUrlGiven && mainData.connectionCountInt < minConn) {
-         status = 'inactive'; // Not enough connections
-         checkActivity = false;
-         finalActivityTime = 'N/A';
-         finalActivityType = 'N/A';
+        status = 'inactive'; // Not enough connections
+        checkActivity = false;
+        finalActivityTime = 'N/A';
+        finalActivityType = 'N/A';
       } else if (mainData.isPremium) {
-         status = 'active'; // Premium profiles are instantly active
-         checkActivity = false;
-         finalActivityTime = 'N/A';
-         finalActivityType = 'Premium';
+        status = 'active'; // Premium profiles are instantly active
+        checkActivity = false;
+        finalActivityTime = 'N/A';
+        finalActivityType = 'Premium';
       } else {
-         checkActivity = true; // Enough connections, or activity URL was directly supplied
+        checkActivity = true; // Enough connections, or activity URL was directly supplied
       }
 
       if (checkActivity) {
-         // Check in specific explicit order: react > comment > post (shares)
-         const activityTabs = isActivityUrlGiven ? [''] : ['reactions', 'comments', 'shares'];
-         
-         for (const actTab of activityTabs) {
-             let activityUrl = url;
-             if (!isActivityUrlGiven) {
-                 activityUrl = finalPublicUrl + `recent-activity/${actTab}/`;
-             }
-             
-             await chrome.tabs.update(tabId, { url: activityUrl });
-             
-             let actLoaded = await waitForLoad(15000, 'activity');
-              if (!actLoaded) {
-                  await setState({ scanStatus: `Slow activity load — hard reloading (cache cleared)...` });
-                  actLoaded = await hardReloadAndWait(15000, 'activity'); // 30s total
-                  if (!actLoaded) {
-                      // Hard throw out of the profile scan logic instead of just the tab
-                      throw new Error('AUTO_SKIP_ACTIVITY_FAIL');
-                  }
-              }
-             
-             await sleep(1500); // Short wait for SPA to route; content_profile will poll the DOM
+        // Check in specific explicit order: react > comment > post (shares)
+        const activityTabs = isActivityUrlGiven ? [''] : ['reactions', 'comments', 'shares'];
 
-             try {
-               await chrome.scripting.executeScript({
-                 target: { tabId: tabId },
-                 files: ['content_profile.js']
-               });
-             } catch(e) {
-                 // Tab was closed mid-scan
-                 await setState({ scanRunning: false, scanStatus: "error: Scanner tab was closed", scanEndedAt: Date.now() });
-                 return;
-             }
+        for (const actTab of activityTabs) {
+          let activityUrl = url;
+          if (!isActivityUrlGiven) {
+            activityUrl = finalPublicUrl + `recent-activity/${actTab}/`;
+          }
 
-             let actData = { lastActivityTime: '', lastActivityType: '', isPremium: false };
-             try {
-               const res = await sendToTab({id: tabId}, { type: 'EXTRACT_PROFILE_ACTIVITY' });
-               if (res?.ok && res.data) actData = res.data;
-             } catch (e) {}
+          await chrome.tabs.update(tabId, { url: activityUrl });
 
-             // Capture premium status from the first activity tab we visit
-             if (actData.isPremium) {
-                 mainData.isPremium = true;
-             }
+          let actLoaded = await waitForLoad(15000, 'activity');
+          if (!actLoaded) {
+            await setState({ scanStatus: `Slow activity load — hard reloading (cache cleared)...` });
+            actLoaded = await hardReloadAndWait(15000, 'activity'); // 30s total
+            if (!actLoaded) {
+              // Hard throw out of the profile scan logic instead of just the tab
+              throw new Error('AUTO_SKIP_ACTIVITY_FAIL');
+            }
+          }
 
-             let isRecentEnough = false;
-              let ageInMonths = Infinity;
-             if (actData.lastActivityTime) {
-                 const t = actData.lastActivityTime;
-                 if (t.toLowerCase().includes('year')) {
-                    ageInMonths = parseInt(t) * 12;
-                 } else if (t.toLowerCase().includes('month')) {
-                    ageInMonths = parseInt(t);
-                 } else { // 'Hour', 'Day', 'Week', 'Minute', 'now' are all < 1 month
-                    ageInMonths = 0; 
-                 }
-                 
-                 const minMonths = state.scanMinActivityMonths || 3;
-                 if (ageInMonths <= minMonths) {
-                    isRecentEnough = true;
-                 }
-             }
-             
-             // Only update if this tab found MORE RECENT activity than previous tabs
-             if (actData.lastActivityTime && timeStringToDays(actData.lastActivityTime) <= bestAgeDays) {
-                 bestAgeDays = timeStringToDays(actData.lastActivityTime);
-                 status = isRecentEnough ? 'active' : 'inactive';
-                 finalActivityTime = actData.lastActivityTime;
-                 finalActivityType = actData.lastActivityType;
-             }
+          await sleep(1500); // Short wait for SPA to route; content_profile will poll the DOM
 
-             // If we discover it's premium on the activity page, mark active and skip remaining
-             if (mainData.isPremium) {
-                 status = 'active';
-                 finalActivityType = finalActivityType || 'Premium';
-                 break;
-             }
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tabId },
+              files: ['content_profile.js']
+            });
+          } catch(e) {
+            // Tab was closed mid-scan
+            await setState({ scanRunning: false, scanStatus: "error: Scanner tab was closed", scanEndedAt: Date.now() });
+            return;
+          }
 
-             // If we found recent enough activity, mark active and skip remaining tabs
-             if (status === 'active') {
-                 break;
-             }
-             
-             // Small delay before navigating to the next activity tab
-             await sleep(2000);
-         }
+          let actData = { lastActivityTime: '', lastActivityType: '', isPremium: false };
+          try {
+            const res = await sendToTab({id: tabId}, { type: 'EXTRACT_PROFILE_ACTIVITY' });
+            if (res?.ok && res.data) actData = res.data;
+          } catch (e) {}
+
+          // Capture premium status from the first activity tab we visit
+          if (actData.isPremium) {
+            mainData.isPremium = true;
+          }
+
+          let isRecentEnough = false;
+          let ageInMonths = Infinity;
+          if (actData.lastActivityTime) {
+            const t = actData.lastActivityTime;
+            if (t.toLowerCase().includes('year')) {
+              ageInMonths = parseInt(t) * 12;
+            } else if (t.toLowerCase().includes('month')) {
+              ageInMonths = parseInt(t);
+            } else { // 'Hour', 'Day', 'Week', 'Minute', 'now' are all < 1 month
+              ageInMonths = 0;
+            }
+
+            const minMonths = state.scanMinActivityMonths || 3;
+            if (ageInMonths <= minMonths) {
+              isRecentEnough = true;
+            }
+          }
+
+          // Only update if this tab found MORE RECENT activity than previous tabs
+          if (actData.lastActivityTime && timeStringToDays(actData.lastActivityTime) <= bestAgeDays) {
+            bestAgeDays = timeStringToDays(actData.lastActivityTime);
+            status = isRecentEnough ? 'active' : 'inactive';
+            finalActivityTime = actData.lastActivityTime;
+            finalActivityType = actData.lastActivityType;
+          }
+
+          // If we discover it's premium on the activity page, mark active and skip remaining
+          if (mainData.isPremium) {
+            status = 'active';
+            finalActivityType = finalActivityType || 'Premium';
+            break;
+          }
+
+          // If we found recent enough activity, mark active and skip remaining tabs
+          if (status === 'active') {
+            break;
+          }
+
+          // Small delay before navigating to the next activity tab
+          await sleep(2000);
+        }
       }
 
       let finalType = finalActivityType || 'None';
@@ -775,14 +786,14 @@ async function _scanNextInner() {
         last_activity: finalActivity
       };
 
-      const newState = await getState(); 
+      const newState = await getState();
       if (!newState.scanRunning) return;
 
       const results = newState.scanResults || [];
       upsertResult(results, newResult);
       await incrementDailyScanned(1);
 
-      await setState({ 
+      await setState({
         scanResults: results,
         scanIndex: newState.scanIndex + 1,
         scanStartedAt: Date.now()
@@ -791,73 +802,73 @@ async function _scanNextInner() {
     })()]); // end Promise.race
 
   } catch (err) {
-      skipDelay = true;
-      const s = await getState();
+    skipDelay = true;
+    const s = await getState();
+    if (!s.scanRunning) return;
+
+    const failed = s.scanFailed || [];
+    failed.push(url);
+
+    const results = s.scanResults || [];
+    upsertResult(results, {
+      original_url: url, name: currentName, profile_url: currentLink,
+      status: 'Skipped', is_premium: 'Skipped', connection_count: 'Skipped',
+      activity_type: 'Skipped', last_activity: 'Skipped'
+    });
+
+    if (String(err).includes('PROFILE_TIMEOUT')) {
+      log(`Profile ${state.scanIndex + 1} timed out after 90s, auto-skipping.`);
       if (!s.scanRunning) return;
-
-      const failed = s.scanFailed || [];
-      failed.push(url);
-      
-      const results = s.scanResults || [];
-      upsertResult(results, {
-        original_url: url, name: currentName, profile_url: currentLink,
-        status: 'Skipped', is_premium: 'Skipped', connection_count: 'Skipped',
-        activity_type: 'Skipped', last_activity: 'Skipped'
+      await setState({
+        scanIndex: (s.scanIndex || 0) + 1,
+        scanFailed: failed,
+        scanResults: results,
+        scanStatus: `Skipped profile ${state.scanIndex + 1} (timed out after 90s)`,
+        scanStartedAt: Date.now()
       });
-
-      if (String(err).includes('PROFILE_TIMEOUT')) {
-        log(`Profile ${state.scanIndex + 1} timed out after 90s, auto-skipping.`);
-        if (!s.scanRunning) return;
-        await setState({
-          scanIndex: (s.scanIndex || 0) + 1,
-          scanFailed: failed,
-          scanResults: results,
-          scanStatus: `Skipped profile ${state.scanIndex + 1} (timed out after 90s)`,
-          scanStartedAt: Date.now()
-        });
-      } else if (String(err).includes('PROFILE_MANUAL_SKIP')) {
-        log(`Profile ${state.scanIndex + 1} was manually skipped.`);
-        if (!s.scanRunning) return;
-        await setState({
-          scanIndex: (s.scanIndex || 0) + 1,
-          scanFailed: failed,
-          scanResults: results,
-          scanStatus: `Skipped profile ${state.scanIndex + 1} (manually skipped)`,
-          scanStartedAt: Date.now()
-        });
-      } else if (String(err).includes('AUTO_SKIP_LOAD_FAIL')) {
-        log(`Profile ${state.scanIndex + 1} failed to load after 30s, auto-skipping.`);
-        if (!s.scanRunning) return;
-        await setState({
-          scanIndex: (s.scanIndex || 0) + 1,
-          scanFailed: failed,
-          scanResults: results,
-          scanStatus: `Skipped profile ${state.scanIndex + 1} (failed to load after 30s)`,
-          scanStartedAt: Date.now()
-        });
-      } else if (String(err).includes('AUTO_SKIP_ACTIVITY_FAIL')) {
-        log(`Profile ${state.scanIndex + 1} activity tab failed to load after 30s, auto-skipping.`);
-        if (!s.scanRunning) return;
-        await setState({
-          scanIndex: (s.scanIndex || 0) + 1,
-          scanFailed: failed,
-          scanResults: results,
-          scanStatus: `Skipped profile ${state.scanIndex + 1} (activity tab failed after 30s)`,
-          scanStartedAt: Date.now()
-        });
-      } else {
-        log('Fatal error scanning profile', err);
-        await setState({ scanIndex: (s.scanIndex || 0) + 1, scanFailed: failed, scanResults: results, scanStartedAt: Date.now() });
-      }
+    } else if (String(err).includes('PROFILE_MANUAL_SKIP')) {
+      log(`Profile ${state.scanIndex + 1} was manually skipped.`);
+      if (!s.scanRunning) return;
+      await setState({
+        scanIndex: (s.scanIndex || 0) + 1,
+        scanFailed: failed,
+        scanResults: results,
+        scanStatus: `Skipped profile ${state.scanIndex + 1} (manually skipped)`,
+        scanStartedAt: Date.now()
+      });
+    } else if (String(err).includes('AUTO_SKIP_LOAD_FAIL')) {
+      log(`Profile ${state.scanIndex + 1} failed to load after 30s, auto-skipping.`);
+      if (!s.scanRunning) return;
+      await setState({
+        scanIndex: (s.scanIndex || 0) + 1,
+        scanFailed: failed,
+        scanResults: results,
+        scanStatus: `Skipped profile ${state.scanIndex + 1} (failed to load after 30s)`,
+        scanStartedAt: Date.now()
+      });
+    } else if (String(err).includes('AUTO_SKIP_ACTIVITY_FAIL')) {
+      log(`Profile ${state.scanIndex + 1} activity tab failed to load after 30s, auto-skipping.`);
+      if (!s.scanRunning) return;
+      await setState({
+        scanIndex: (s.scanIndex || 0) + 1,
+        scanFailed: failed,
+        scanResults: results,
+        scanStatus: `Skipped profile ${state.scanIndex + 1} (activity tab failed after 30s)`,
+        scanStartedAt: Date.now()
+      });
+    } else {
+      log('Fatal error scanning profile', err);
+      await setState({ scanIndex: (s.scanIndex || 0) + 1, scanFailed: failed, scanResults: results, scanStartedAt: Date.now() });
+    }
   } finally {
-      clearTimeout(timeoutId);
-      _cancelCurrentScan = null;
+    clearTimeout(timeoutId);
+    _cancelCurrentScan = null;
   }
 
   // Check if the queue is fully processed
   const latestState = await getState();
   const isQueueDone = (latestState.scanIndex || 0) >= (latestState.scanQueue || []).length;
-  
+
   if (isQueueDone) {
     // Immediately finalize — no delay, no extra loop iteration
     chrome.notifications.create({
@@ -876,7 +887,7 @@ async function _scanNextInner() {
     await setState({ scanStatus: `Waiting ${Math.round(delayMs/1000)}s...` });
     await sleep(delayMs);
   }
-  
+
   // Schedule next profile scan via alarm so it works even when window is minimized.
   await scheduleNextScan();
 }
@@ -889,9 +900,9 @@ async function downloadScannerData(results) {
   };
   const lines = [header.join(",")].concat(
     results.map((r) => [
-      esc(r.name), 
-      esc(r.profile_url), 
-      esc(r.status), 
+      esc(r.name),
+      esc(r.profile_url),
+      esc(r.status),
       esc(r.is_premium),
       esc(r.connection_count),
       esc(r.last_activity)
@@ -998,7 +1009,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       } catch (e) { }
 
       const tab = await chrome.tabs.create({ url: targetUrl });
-      // pagesDone is tracked as "number of pages completed so far". 
+      // pagesDone is tracked as "number of pages completed so far".
       // If we start on page 5, pagesDone should be 4, so the next scrape does page 5.
       await setState({ tabId: tab.id, mode, running: true, status: `running (opening tab at page ${startPage})`, pagesDone: startPage - 1, rows: [], seen: {}, maxProfiles, scrollSpeed: msg.scrollSpeed || 'fast', currentPageOnly: msg.currentPageOnly || false, deepFetch: msg.deepFetch || false, companyDeep: msg.companyDeep || false });
       // Give the new tab time to load before starting the loop
@@ -1120,8 +1131,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       let urls = msg.urls || [];
       if (urls.length === 0) return sendResponse({ ok: false, error: "No URLs provided" });
 
-
-
       // -- Daily limit: max 100 --
       const dailyCount = await getDailyScannedCount();
       const remaining = Math.max(0, 100 - dailyCount);
@@ -1129,7 +1138,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (remaining === 0) return sendResponse({ ok: false, error: 'Daily limit reached (100 profiles/day). Please try again tomorrow.' });
         if (urls.length > remaining) urls = urls.slice(0, remaining);
       }
-      
+
       await setState({
         scanQueue: urls,
         scanMinConnections: msg.minConnections || 0,
@@ -1143,7 +1152,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         scanGlobalStartedAt: Date.now(),
         scanEndedAt: null
       });
-      
+
       sendResponse({ ok: true });
       scanNext();
       return;
@@ -1168,7 +1177,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const currentUrl = (s.scanQueue || [])[s.scanIndex || 0];
         const failed = s.scanFailed || [];
         const results = s.scanResults || [];
-        
+
         if (currentUrl) {
           failed.push(currentUrl);
           upsertResult(results, {
@@ -1177,7 +1186,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             activity_type: 'Skipped', last_activity: 'Skipped'
           });
         }
-        
+
         const newIndex = (s.scanIndex || 0) + 1;
         if (newIndex >= (s.scanQueue || []).length) {
           await setState({ scanRunning: false, scanStatus: 'done', scanIndex: newIndex, scanFailed: failed, scanResults: results, scanEndedAt: Date.now() });
@@ -1213,7 +1222,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === "STOP_SCAN") {
       const s = await getState();
       if (s.scanTabId) {
-          // Optional: we can leave the tab open on stop as well
+        // Optional: we can leave the tab open on stop as well
       }
       await setState({
         scanRunning: false,
@@ -1231,7 +1240,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === "RESET_SCAN") {
       const s = await getState();
       if (s.scanTabId) {
-          // Optional: we can leave the tab open on stop as well
+        // Optional: we can leave the tab open on stop as well
       }
       await setState({
         scanRunning: false,
@@ -1270,9 +1279,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // ════ COMPANY SCANNER MESSAGE HANDLERS ═══════════════════
-    // ═══════════════════════════════════════════════════════════
+    // ════════════════════════════════════════════════════════════════════
+    // ════ COMPANY SCANNER MESSAGE HANDLERS ═══════════════════════
+    // ════════════════════════════════════════════════════════════════════
 
     if (msg.type === "GET_COMP_SCAN_STATUS") {
       const s = await getState();
@@ -1388,9 +1397,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;
 });
 
-// ═══════════════════════════════════════════════════════════════
-// ════ COMPANY SCANNER CORE LOGIC ═════════════════════════════
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
+// ════ COMPANY SCANNER CORE LOGIC ══════════════════════════
+// ═════════════════════════════════════════════════════════════════════
 
 let _compStepping = false;
 
@@ -1585,7 +1594,7 @@ async function _compScanNextInner() {
       linkedinUrl: url,
       followerCount: '',
       employeesOnLinkedIn: ''
-    });  
+    });
 
     await setState({
       compScanResults: results,
