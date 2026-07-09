@@ -1,16 +1,16 @@
 (function () {
   'use strict';
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * SalesNav Exporter — Expert Data Extraction Engine
-   * 
+   *
    * Techniques used (from top scraper research):
-   * 1. data-anonymize / aria-label attribute targeting
-   * 2. MutationObserver for DOM readiness detection
-   * 3. Structural DOM traversal (parent→child walks)
-   * 4. Multiple selector fallback chains
-   * 5. Regex-free field isolation where possible
-   * ═══════════════════════════════════════════════════ */
+   *   1. data-anonymize / aria-label attribute targeting
+   *   2. MutationObserver for DOM readiness detection
+   *   3. Structural DOM traversal (parent→child walks)
+   *   4. Multiple selector fallback chains
+   *   5. Regex-free field isolation where possible
+   * ═════════════════════════════════════ */
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -72,11 +72,11 @@
     });
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * SELECTOR CHAINS
    * Each field has a prioritized chain of selectors.
    * Falls through to next if the first returns empty.
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
 
   const SEL = {
     // Card container: <li> elements with lead links
@@ -144,7 +144,7 @@
     return null;
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * INDUSTRY RESOLVER — Sales Navigator internal API
    *
    * Deep Fetch no longer hovers over each lead. Instead we
@@ -156,7 +156,7 @@
    *   • One request per UNIQUE company (cached), not per lead.
    *   • Bounded concurrency so we don't hammer the endpoint.
    *   • Any error / missing field → '' (leave blank, never guess).
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   const industryCache = new Map(); // companyId -> industry ('' = resolved, none found)
 
   /** LinkedIn's CSRF token is the JSESSIONID cookie value (quotes stripped). */
@@ -274,15 +274,15 @@
     return map;
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * LEAD-SEARCH API CAPTURE (isolated world)
    *
    * inject_capture.js (MAIN world) forwards Sales Navigator's own lead-search
    * responses here. Each payload holds every lead for a page, so we prefer it
    * over DOM scraping (which lazy-loads and can miss cards) and fall back to
    * the DOM only if a clean capture isn't available.
-   * ═══════════════════════════════════════════════════ */
-  const SNX_CAP_DEBUG = true; // logs capture diagnostics to the page console
+   * ═════════════════════════════════════ */
+  const SNX_CAP_DEBUG = false; // set true to log capture diagnostics to the page console
   const dbgCap = (...a) => { if (SNX_CAP_DEBUG) console.log('%c[SNX cap]', 'color:#22c55e', ...a); };
 
   const capturedPages = []; // { start, leads:[...], ts }
@@ -355,7 +355,7 @@
     const linkedinUrl = leadId ? `https://www.linkedin.com/in/${leadId}` : '';
 
     const pos = (Array.isArray(el.currentPositions) && el.currentPositions[0]) ||
-                el.currentPosition || {};
+      el.currentPosition || {};
     const title = pos.title || el.title || el.headline || '';
     const companyName = pos.companyName || (pos.company && pos.company.name) || el.companyName || '';
     const companyUrn = pos.companyUrn || (pos.company && pos.company.entityUrn) || el.companyUrn || '';
@@ -389,10 +389,10 @@
     return capturedPages[capturedPages.length - 1].leads; // newest capture
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * SINGLE CARD PARSER
    * Extracts all visible fields from one <li> card.
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function parseCard(li, industryByCompany = null) {
     // ── 1. Name Link + Sales Navigator URL ──
     const nameLink = li.querySelector(SEL.leadLinkPrimary) || li.querySelector(SEL.leadLink);
@@ -400,7 +400,7 @@
 
     let fullName = txt(nameLink)
       .replace(/\s+(is reachable|was last active.*|is online)$/i, '')
-      .replace(/\s*[\u00B7]\s*\d+\w+$/i, '')  // Remove trailing "· 2nd" etc
+      .replace(/\s*[\u00B7]\s*\d+\w+$/i, '') // Remove trailing "· 2nd" etc
       .trim();
 
     // Skip private profiles (no visible name)
@@ -419,8 +419,8 @@
     const profilePictureUrl = imgEl ? (attr(imgEl, 'src') || '') : '';
 
     // ── 4. Connection Degree ──
-    //    Strategy A: Dedicated degree element
-    //    Strategy B: Parse from innerText near the name
+    // Strategy A: Dedicated degree element
+    // Strategy B: Parse from innerText near the name
     let connectionDegree = '';
     const degreeEl = q(li, SEL.degree);
     if (degreeEl) {
@@ -440,7 +440,7 @@
     // ── 5. Headline (raw text from dedicated element) ──
     let headlineEl = q(li, SEL.headline);
     let headline = txt(headlineEl);
-    
+
     // Explicitly reject if we accidentally grabbed the tenure block
     if (headline && /(in role|in company)/i.test(headline)) {
       headline = '';
@@ -477,8 +477,8 @@
     }
 
     // ── 7. Location ──
-    //    Strategy A: data-anonymize="location" attribute
-    //    Strategy B: structural scan for City, State/Country pattern
+    // Strategy A: data-anonymize="location" attribute
+    // Strategy B: structural scan for City, State/Country pattern
     let profileLocation = '';
     const locEl = q(li, SEL.location);
     if (locEl) {
@@ -489,8 +489,8 @@
       for (const el of li.querySelectorAll('span, div')) {
         const t = directTxt(el);
         if (t && t.length > 3 && t.length < 80 &&
-            /^[A-Za-z\u00C0-\u00FF\s.'-]+,\s*[A-Za-z\u00C0-\u00FF\s.'-]+/.test(t) &&
-            !/\b(manager|director|engineer|analyst|specialist|consultant|founder|ceo|cto|vp|president|head|lead|senior|junior)\b/i.test(t)) {
+          /^[A-Za-z\u00C0-\u00FF\s.'-]+,\s*[A-Za-z\u00C0-\u00FF\s.'-]+/.test(t) &&
+          !/\b(manager|director|engineer|analyst|specialist|consultant|founder|ceo|cto|vp|president|head|lead|senior|junior)\b/i.test(t)) {
           profileLocation = t;
           break;
         }
@@ -504,7 +504,7 @@
         .replace(/\b(1st|2nd|3rd|degree)\b.*/ig, '')
         .replace(/^(?:Current:\s*|·\s*)/i, '')
         .trim();
-        
+
       // If there are newlines, the title is usually on the first line
       title = title.split(/\r?\n/)[0].trim();
 
@@ -516,7 +516,7 @@
       }
       title = title.replace(/^[\s·|,\-–—]+|[\s·|,\-–—]+$/g, '').trim();
     }
-    
+
     // Final sanity check: title shouldn't be the tenure block
     if (/(in role|in company)/i.test(title)) title = '';
 
@@ -532,12 +532,11 @@
     };
   }
 
-
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * SCROLL ENGINE
    * Uses aggressive but efficient scrolling with
    * MutationObserver-assisted card count tracking.
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function findScrollContainers() {
     const containers = [];
     let el = document.querySelector(`${SEL.card} ${SEL.leadLink}`)?.closest('li');
@@ -586,14 +585,14 @@
       while (pos < maxS && Date.now() < DEADLINE) {
         pos += STEP;
         scrollTo(containers, Math.min(pos, maxS)); // never overshoot past the bottom
-        await sleep(320);                          // dwell so sections can render
-        maxS = maxScroll(containers);              // list may grow as rows load
+        await sleep(320); // dwell so sections can render
+        maxS = maxScroll(containers); // list may grow as rows load
       }
       await sleep(400); // settle at the bottom
 
       const count = countCards();
-      if (EXPECTED && count >= EXPECTED) break;   // full page: every card present
-      if (count === prevPassCount) break;         // last page: a pass added nothing
+      if (EXPECTED && count >= EXPECTED) break; // full page: every card present
+      if (count === prevPassCount) break; // last page: a pass added nothing
       prevPassCount = count;
 
       scrollTo(containers, 0); // re-walk from the top for any still-missing rows
@@ -604,9 +603,9 @@
     await sleep(200);
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * MAIN EXTRACTION PIPELINE
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   /**
    * Build rows from Sales Navigator's captured lead-search payload, or return
    * null if no clean capture is available (→ caller falls back to DOM scrape).
