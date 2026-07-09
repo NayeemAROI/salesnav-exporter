@@ -1,4 +1,3 @@
-<div align="center">
 
 # 🚀 SalesNav Exporter — Browser Extension
 
@@ -8,27 +7,27 @@
 [![Status](https://img.shields.io/badge/status-Internal_Release-orange.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Chrome%20%7C%20Edge%20%7C%20Brave-lightgrey.svg)]()
 
-<br/>
+ 
 
-</div>
+ 
 
 ---
 
 ## 📸 Preview
 
-<p align="center">
-  <img src="assets/preview1.png" alt="Scanner Config" width="200"/>
-  <img src="assets/preview2.png" alt="Scanner Progress" width="200"/>
-  <img src="assets/preview3.png" alt="Scanner Controls" width="200"/>
-  <img src="assets/preview4.png" alt="Batch Limit Modal" width="200"/>
-</p>
+ 
+ 
+ 
+ 
+ 
+ 
 
 ## ✨ Features
 
 ### 📊 1. List Exporter (Sales Navigator)
 *Quickly export leads directly from Sales Navigator People search or Lead lists.*
 - 🧭 Navigate to your Sales Navigator list.
-- 🖱️ Click the extension icon and hit **Export Current Page** to download a CSV of the visible leads.
+- 🖥️ Click the extension icon and hit **Export Current Page** to download a CSV of the visible leads.
 
 ### 🔍 2. Deep Scanner (Profile Activity Checker)
 *Analyze a list of LinkedIn profiles automatically to determine their activity status and premium tier.*
@@ -74,6 +73,23 @@ When a new version of the code is released:
 1. ♻️ Replace the files in your local `browser-extension` folder with the new versions.
 2. 🔙 Go back to `chrome://extensions` (or your browser's equivalent).
 3. 🔄 Find the *SalesNav Exporter* card and click the **Refresh** icon (the circular arrow button) to load the new changes.
+
+---
+
+## 🔐 Permissions
+
+The extension requests the following permissions in `manifest.json`. Each is required for a specific reason:
+
+| Permission | Why it's needed |
+| --- | --- |
+| `storage` | Persists scrape/scan state, export history, and the daily scan counter across popup opens and page reloads. |
+| `downloads` | Saves the exported CSV / JSON files to disk. |
+| `alarms` | Backs the step scheduler so long-running exports survive the MV3 service worker going idle. |
+| `tabs` | Reads the active tab's URL to detect people-vs-company mode, and opens/updates the dedicated scanner tab during deep scans. |
+| `activeTab` | Grants access to the current Sales Navigator tab when the popup is invoked. |
+| `scripting` | Injects the correct content script (`content_people.js`, `content_company.js`, or `content_profile.js`) on demand from the service worker, including retries when the receiving end isn't ready. |
+| `notifications` | Shows a desktop notification when a deep scan finishes. |
+| **Host permissions** (`linkedin.com/sales/*`, `/in/*`, `/company/*`) | Limits the extension to LinkedIn and Sales Navigator pages only — required so the content scripts and API lookups can run there and nowhere else. |
 
 ---
 
