@@ -1,0 +1,24 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SalesNav Exporter icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2B2622"/>
+      <stop offset="1" stop-color="#E8620E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="128" height="128" rx="28" fill="url(#bg)"/>
+
+  <!-- Symmetrical export glyph, centered on x=64 -->
+  <g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Download arrow -->
+    <line x1="64" y1="24" x2="64" y2="58"/>
+    <polyline points="48,44 64,60 80,44"/>
+
+    <!-- Four exported list rows -->
+    <line x1="40" y1="78"  x2="88" y2="78"/>
+    <line x1="40" y1="90"  x2="88" y2="90"/>
+    <line x1="40" y1="102" x2="88" y2="102"/>
+    <line x1="40" y1="114" x2="88" y2="114"/>
+  </g>
+</svg>
