@@ -72,7 +72,7 @@ function randPageDelayMs(speed) {
     case 'safe': return 8000 + Math.floor(Math.random() * 10000); // 8-18s
     case 'medium': return 4000 + Math.floor(Math.random() * 6000); // 4-10s
     case 'fast':
-    default: return 1000 + Math.floor(Math.random() * 4000); // 1-5s
+    default: return 1500 + Math.floor(Math.random() * 1000); // ~2s (1.5-2.5s, small jitter)
   }
 }
 
@@ -467,7 +467,7 @@ async function _stepOnceInner() {
     return;
   }
 
-  const pageLoadDelay = speed === 'safe' ? 7000 : speed === 'medium' ? 5000 : 4000;
+  const pageLoadDelay = speed === 'safe' ? 7000 : speed === 'medium' ? 5000 : 2000;
   await setState({ pagesDone: latest.pagesDone + 1, status: "running (waiting for next page to load)" });
   await sleep(pageLoadDelay);
 
