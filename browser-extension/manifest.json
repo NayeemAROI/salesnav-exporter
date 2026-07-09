@@ -5,21 +5,7 @@
   "permissions": ["storage", "downloads", "alarms", "tabs", "activeTab", "scripting", "notifications"],
   "host_permissions": ["https://www.linkedin.com/sales/*", "https://www.linkedin.com/in/*", "https://www.linkedin.com/company/*"],
   "background": { "service_worker": "background.js" },
-  "icons": {
-    "16": "icon128.png",
-    "32": "icon128.png",
-    "48": "icon128.png",
-    "128": "icon128.png"
-  },
-  "action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icon128.png",
-      "32": "icon128.png",
-      "48": "icon128.png",
-      "128": "icon128.png"
-    }
-  },
+  "action": { "default_popup": "popup.html" },
   "content_scripts": [
     {
       "matches": [
