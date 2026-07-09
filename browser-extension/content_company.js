@@ -1,7 +1,7 @@
 (function () {
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * UTILITIES
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function absUrl(href) {
     try {
       return new URL(href, window.location.origin).toString();
@@ -29,9 +29,9 @@
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * SELECTORS — prioritized chains, broadest last
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   const SEL = {
     card: 'main li',
     companyLink: 'a[href*="/sales/company/"]',
@@ -55,9 +55,9 @@
     ]
   };
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * WAIT FOR ELEMENTS (critical for SPA navigation)
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function waitForElements(selector, timeout = 12000) {
     return new Promise((resolve) => {
       const existing = document.querySelectorAll(selector);
@@ -81,9 +81,9 @@
     });
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * CARD LINE EXTRACTION
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function getCardLines(li) {
     const lines = (li.innerText || '')
       .replace(/\r/g, '')
@@ -113,9 +113,9 @@
     ].some((re) => re.test(line));
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * FIELD EXTRACTION HELPERS
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function pickFirstText(root, selectors) {
     for (const sel of selectors) {
       const el = root.querySelector(sel);
@@ -141,7 +141,7 @@
     return false;
   }
 
-  const SNX_CO_DEBUG = true; // logs why a company's industry came out blank
+  const SNX_CO_DEBUG = false; // set true to log why a company's industry came out blank
   const dbgCo = (...a) => { if (SNX_CO_DEBUG) console.log('%c[SNX co]', 'color:#f97316', ...a); };
 
   // Backstop allowlist for real LinkedIn industries that contain no obvious
@@ -238,17 +238,17 @@
     return '';
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * NAVIGATION
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function findNextButton() {
     const btns = Array.from(document.querySelectorAll('button'));
     return btns.find((b) => (b.textContent || '').trim().toLowerCase() === 'next' && !b.disabled);
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * SCROLL TO LOAD ALL CARDS
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function findScrollableResultsContainer() {
     // Try multiple selectors to find the first company card
     const firstCard =
@@ -302,13 +302,13 @@
         pos += STEP;
         setScrollTop(Math.min(pos, maxS)); // never overshoot past the bottom
         await sleep(320);
-        maxS = maxScroll();                 // list may grow as rows load
+        maxS = maxScroll(); // list may grow as rows load
       }
       await sleep(400); // settle at the bottom
 
       const count = countCompanyCards();
-      if (EXPECTED && count >= EXPECTED) break;   // full page: every card present
-      if (count === prevPassCount) break;         // last page: a pass added nothing
+      if (EXPECTED && count >= EXPECTED) break; // full page: every card present
+      if (count === prevPassCount) break; // last page: a pass added nothing
       prevPassCount = count;
 
       setScrollTop(0); // re-walk from the top for any still-missing rows
@@ -319,9 +319,9 @@
     await sleep(200);
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * MAIN EXTRACTION PIPELINE
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   function findCompanyCards() {
     // Strategy 1: main li with company link
     let lis = Array.from(document.querySelectorAll(SEL.card));
@@ -345,13 +345,17 @@
     return containers;
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * DEEP COMPANY LOOKUP (opt-in checkbox)
    * Company search cards don't carry the website, so when enabled we look up
    * each unique company via LinkedIn's company API to fetch the website (and
    * backfill industry / country when the card didn't have them). One cached
    * request per company; any failure → left as-is (never blocks the export).
-   * ═══════════════════════════════════════════════════ */
+   *
+   * Requests go out SERIALLY with random jitter (not concurrent) so authed
+   * calls to LinkedIn's private company API don't look machine-timed / bursty
+   * — same anti-bot hardening as the people-side industry resolver.
+   * ═════════════════════════════════════ */
   const companyDetailCache = new Map();
 
   function getCsrfToken() {
@@ -454,13 +458,19 @@
     return details;
   }
 
-  async function resolveCompanyDetails(ids, concurrency = 4) {
+  // Resolve company details SERIALLY (one request at a time) with random
+  // jitter between network hits. Cached ids cost nothing (no request, no delay).
+  async function resolveCompanyDetails(ids) {
     const map = new Map();
-    let i = 0;
-    async function worker() {
-      while (i < ids.length) { const id = ids[i++]; map.set(id, await fetchCompanyDetails(id)); }
+    const list = [...new Set((ids || []).filter(Boolean))];
+    for (let i = 0; i < list.length; i++) {
+      const id = list[i];
+      const cached = companyDetailCache.has(id);
+      map.set(id, await fetchCompanyDetails(id));
+      if (!cached && i < list.length - 1) {
+        await sleep(400 + Math.floor(Math.random() * 800)); // 400–1200ms
+      }
     }
-    await Promise.all(Array.from({ length: Math.min(concurrency, ids.length) }, worker));
     return map;
   }
 
@@ -521,9 +531,9 @@
     return rows.map(({ __companyId, ...r }) => r);
   }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * MESSAGE HANDLER
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type !== 'EXTRACT_PAGE' && msg.type !== 'HAS_NEXT' && msg.type !== 'CLICK_NEXT') return false;
 
