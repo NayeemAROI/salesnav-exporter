@@ -147,15 +147,14 @@
   /* ═════════════════════════════════════
    * INDUSTRY RESOLVER — Sales Navigator internal API
    *
-   * Deep Fetch no longer hovers over each lead. Instead we
-   * read the company id from each card's company link and ask
-   * LinkedIn's own Sales Navigator company endpoint for the
-   * canonical industry value. Same-origin fetch → auth cookies
-   * flow automatically; we only need the CSRF token.
+   * Deep Fetch reads the company id from each card's company link and asks
+   * LinkedIn's own Voyager company endpoint for the canonical industry value.
+   * Same-origin fetch → auth cookies flow automatically; we only need the
+   * CSRF token.
    *
    *   • One request per UNIQUE company (cached), not per lead.
-   *   • Requests are SERIAL with human-like jitter to keep the request
-   *     pattern from looking machine-timed (reduces anti-bot exposure).
+   *   • SERIAL requests with random jitter so traffic never looks
+   *     machine-timed / bursty (reduces anti-bot fingerprint).
    *   • Any error / missing field → '' (leave blank, never guess).
    * ═════════════════════════════════════ */
   const industryCache = new Map(); // companyId -> industry ('' = resolved, none found)
@@ -259,23 +258,26 @@
   }
 
   /**
-   * Resolve many company ids → Map(id → industry).
+   * Resolve many company ids SERIALLY (one request at a time) with a random
+   * delay between each → Map(id → industry).
    *
-   * Requests are issued SERIALLY (never in parallel) with a randomized delay
-   * between each, so the traffic doesn't look like a machine-timed burst of
-   * private-API calls. This is a deliberate anti-ban trade-off: Deep Fetch is
-   * a bit slower, but the request pattern is far less detectable. The
-   * `concurrency` arg is kept for compatibility but effectively pinned to 1.
+   * Rationale: firing 5 concurrent authenticated calls to LinkedIn's private
+   * Voyager API is a strong bot signal. Going one-at-a-time with human-like
+   * jitter keeps the same result while looking far less machine-timed. Cached
+   * ids cost nothing (no request, no delay).
    */
-  async function resolveIndustries(companyIds, concurrency = 1) {
+  async function resolveIndustries(companyIds) {
     const ids = [...new Set(companyIds.filter(Boolean))];
     const map = new Map();
-    // Human-like jitter between calls (400–1200ms) to avoid machine-timed bursts.
-    const jitter = () => 400 + Math.floor(Math.random() * 800);
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i];
+      const cached = industryCache.has(id);
       map.set(id, await fetchCompanyIndustry(id));
-      if (i < ids.length - 1) await sleep(jitter());
+      // Jitter only when we actually hit the network (skip cache hits and the
+      // final id) so bulk pages don't look like a timed burst.
+      if (!cached && i < ids.length - 1) {
+        await sleep(400 + Math.floor(Math.random() * 800)); // 400–1200ms
+      }
     }
     return map;
   }
