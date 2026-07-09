@@ -1,13 +1,6 @@
 const STATE_KEY = "salesnav_export_state";
 const HISTORY_KEY = "salesnav_export_history";
 const SCAN_DAILY_KEY = "salesnav_scan_daily";
-
-// Notification icon. chrome.notifications.create({type:'basic'}) requires an
-// iconUrl, and omitting it throws on some Chrome versions. We ship a tiny
-// inline data: URL so notifications always render and never depend on a
-// packaged icon file being present.
-const NOTIF_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-
 // --- Daily Scan Counter ---
 async function getDailyScannedCount() {
   const data = await chrome.storage.local.get(SCAN_DAILY_KEY);
@@ -33,6 +26,16 @@ let _stepping = false;
 
 function log(...args) {
   try { console.log('[SalesNavExporter]', ...args); } catch { }
+}
+
+// Fire a desktop notification. iconUrl is intentionally omitted — the extension
+// ships no bundled raster icon, and pointing at a missing icon128.png makes the
+// notification fail to render. Omitting it lets Chrome show a clean textual
+// notification instead.
+function notify(title, message) {
+  try {
+    chrome.notifications.create({ type: 'basic', title, message });
+  } catch (e) { log('notify failed', String(e)); }
 }
 
 async function getState() {
@@ -562,12 +565,7 @@ async function _scanNextInner() {
       // We no longer close the tab automatically so the user can see the final page
     }
 
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: NOTIF_ICON,
-      title: 'Deep Profile Scanner',
-      message: 'Scanner has finished processing all profiles in the queue.'
-    });
+    notify('Deep Profile Scanner', 'Scanner has finished processing all profiles in the queue.');
 
     await setState({ scanRunning: false, scanStatus: "done", scanTabId: null, scanEndedAt: Date.now() });
     return;
@@ -942,12 +940,7 @@ async function _scanNextInner() {
 
   if (isQueueDone) {
     // Immediately finalize — no delay, no extra loop iteration
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: NOTIF_ICON,
-      title: 'Deep Profile Scanner',
-      message: 'Scanner has finished processing all profiles in the queue.'
-    });
+    notify('Deep Profile Scanner', 'Scanner has finished processing all profiles in the queue.');
     await setState({ scanRunning: false, scanStatus: "done", scanTabId: null, scanEndedAt: Date.now() });
     return;
   }
@@ -1512,12 +1505,7 @@ async function _compScanNextInner() {
   if (!state.compScanRunning) return;
 
   if (state.compScanIndex >= (state.compScanQueue || []).length) {
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: NOTIF_ICON,
-      title: 'Company Scanner',
-      message: 'Company scanner has finished processing all companies.'
-    });
+    notify('Company Scanner', 'Company scanner has finished processing all companies.');
     await setState({ compScanRunning: false, compScanStatus: "done", compScanTabId: null, compScanEndedAt: Date.now() });
     return;
   }
