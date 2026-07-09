@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  /* ═══════════════════════════════════════════════════
+  /* ═════════════════════════════════════
    * LEAD-SEARCH CAPTURE (MAIN world)
    *
    * Runs in the page's own JS context so it can see Sales Navigator's own
@@ -12,9 +12,9 @@
    * array), not URL-based, because SN's endpoint name varies. A discovery log
    * ([SNX url]) prints candidate endpoints + field names so the parser can be
    * pinned to the live payload.
-   * ═══════════════════════════════════════════════════ */
+   * ═════════════════════════════════════ */
 
-  const DISCOVER = true; // set false once the parser is pinned
+  const DISCOVER = false; // set true to print endpoint/field discovery logs while pinning the parser
 
   if (DISCOVER) { try { console.log('%c[SNX cap] injector active (MAIN world)', 'color:#16a34a;font-weight:bold'); } catch (e) {} }
 
