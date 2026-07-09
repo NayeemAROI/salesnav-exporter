@@ -153,8 +153,10 @@
    * CSRF token.
    *
    *   • One request per UNIQUE company (cached), not per lead.
-   *   • Bounded concurrency (5) for speed. NOTE: this is faster but a stronger
-   *     anti-bot signal than serial requests — chosen per user preference.
+   *   • Bounded concurrency (5) for speed. NOTE: firing several authenticated
+   *     calls to LinkedIn's private Voyager API in parallel is a stronger
+   *     anti-bot signal than a serial/jittered pattern — kept concurrent here
+   *     by explicit request (favouring speed over stealth).
    *   • Any error / missing field → '' (leave blank, never guess).
    * ═════════════════════════════════════ */
   const industryCache = new Map(); // companyId -> industry ('' = resolved, none found)
@@ -534,9 +536,9 @@
 
   /* ═════════════════════════════════════
    * SCROLL ENGINE
-   * Walks the full virtualized list top→bottom so every lead card renders.
-   * No early-exit: we always complete the walk (per user preference) so the
-   * whole page is scanned even if the DOM briefly reports 25 cards.
+   * Walks the virtualized list top→bottom, dwelling at each step so every
+   * lead card renders. Does a FULL walk (no early-exit) so partially-rendered
+   * pages are always fully captured, per user request.
    * ═════════════════════════════════════ */
   function findScrollContainers() {
     const containers = [];
