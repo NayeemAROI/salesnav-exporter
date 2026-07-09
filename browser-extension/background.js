@@ -188,12 +188,76 @@ async function pushHistory(entry) {
   log('history+', entry);
 }
 
-// Download a string as a file. MV3 service workers do NOT expose
-// URL.createObjectURL (it was removed), so Blob object URLs are impossible
-// here — we must use a data: URL, which downloads.download() accepts.
+// ═════════════════════════════════════
+// DOWNLOADS — Blob URLs via an offscreen document
+//
+// MV3 service workers do not expose URL.createObjectURL, so the old path
+// shipped each export as a data: URL. Chrome caps data: URLs (~2MB in
+// practice), so large scrapes silently truncated or failed to download.
+// We now hand the payload to an offscreen document, which builds a Blob and
+// returns a blob: URL (no practical size cap). If the offscreen document is
+// unavailable for any reason, we fall back to the legacy data: URL.
+// ═════════════════════════════════════
+const OFFSCREEN_PATH = 'offscreen.html';
+let _creatingOffscreen = null;
+
+async function hasOffscreenDocument() {
+  try {
+    if (chrome.runtime.getContexts) {
+      const contexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+        documentUrls: [chrome.runtime.getURL(OFFSCREEN_PATH)]
+      });
+      return contexts.length > 0;
+    }
+  } catch (e) {}
+  return false;
+}
+
+async function ensureOffscreenDocument() {
+  if (await hasOffscreenDocument()) return;
+  // Guard against concurrent createDocument calls (Chrome throws if two race).
+  if (_creatingOffscreen) { await _creatingOffscreen; return; }
+  _creatingOffscreen = chrome.offscreen.createDocument({
+    url: OFFSCREEN_PATH,
+    reasons: ['BLOBS'],
+    justification: 'Create Blob URLs for large CSV/JSON exports (data: URLs are size-limited).'
+  });
+  try { await _creatingOffscreen; } finally { _creatingOffscreen = null; }
+}
+
+// Download a string as a file. Prefers a blob: URL minted by the offscreen
+// document; falls back to a data: URL if that path is unavailable.
 async function downloadBlob(content, mimeType, filename, saveAs = false) {
-  const url = `data:${mimeType},${encodeURIComponent(content)}`;
-  return chrome.downloads.download({ url, filename, saveAs });
+  let url = '';
+  try {
+    await ensureOffscreenDocument();
+    const res = await chrome.runtime.sendMessage({ target: 'offscreen-blob', mimeType, content });
+    if (res && res.ok && res.url) url = res.url;
+  } catch (e) {
+    log('offscreen blob url failed, using data: URL fallback', String(e));
+  }
+
+  if (!url) {
+    // Legacy fallback — size-limited but works when offscreen is unavailable.
+    url = `data:${mimeType},${encodeURIComponent(content)}`;
+  }
+
+  const downloadId = await chrome.downloads.download({ url, filename, saveAs });
+
+  // Revoke the blob: URL once the download settles so we don't leak memory.
+  if (url.startsWith('blob:')) {
+    const onChanged = (delta) => {
+      if (delta.id !== downloadId) return;
+      if (delta.state && (delta.state.current === 'complete' || delta.state.current === 'interrupted')) {
+        chrome.runtime.sendMessage({ target: 'offscreen-revoke', url }).catch(() => {});
+        chrome.downloads.onChanged.removeListener(onChanged);
+      }
+    };
+    chrome.downloads.onChanged.addListener(onChanged);
+  }
+
+  return downloadId;
 }
 
 async function downloadData(rows, format, mode, filename, kind) {
@@ -979,6 +1043,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // Offscreen-addressed messages are handled by offscreen.js, not here.
+  if (msg?.target === 'offscreen-blob' || msg?.target === 'offscreen-revoke') return false;
+
   if (msg?.type === "CONVERT_TO_CSV") {
     sendResponse({ ok: true, csv: toCsv(msg.rows, msg.mode) });
     return false;
@@ -1279,7 +1346,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return;
     }
 
-    // ════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════
     // ════ COMPANY SCANNER MESSAGE HANDLERS ═══════════════════════
     // ════════════════════════════════════════════════════════════════════
 
