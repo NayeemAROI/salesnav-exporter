@@ -28,16 +28,6 @@ function log(...args) {
   try { console.log('[SalesNavExporter]', ...args); } catch { }
 }
 
-// Fire a desktop notification. iconUrl is intentionally omitted — the extension
-// ships no bundled raster icon, and pointing at a missing icon128.png makes the
-// notification fail to render. Omitting it lets Chrome show a clean textual
-// notification instead.
-function notify(title, message) {
-  try {
-    chrome.notifications.create({ type: 'basic', title, message });
-  } catch (e) { log('notify failed', String(e)); }
-}
-
 async function getState() {
   const data = await chrome.storage.local.get(STATE_KEY);
   return (
@@ -565,7 +555,11 @@ async function _scanNextInner() {
       // We no longer close the tab automatically so the user can see the final page
     }
 
-    notify('Deep Profile Scanner', 'Scanner has finished processing all profiles in the queue.');
+    chrome.notifications.create({
+      type: 'basic',
+      title: 'Deep Profile Scanner',
+      message: 'Scanner has finished processing all profiles in the queue.'
+    });
 
     await setState({ scanRunning: false, scanStatus: "done", scanTabId: null, scanEndedAt: Date.now() });
     return;
@@ -940,7 +934,11 @@ async function _scanNextInner() {
 
   if (isQueueDone) {
     // Immediately finalize — no delay, no extra loop iteration
-    notify('Deep Profile Scanner', 'Scanner has finished processing all profiles in the queue.');
+    chrome.notifications.create({
+      type: 'basic',
+      title: 'Deep Profile Scanner',
+      message: 'Scanner has finished processing all profiles in the queue.'
+    });
     await setState({ scanRunning: false, scanStatus: "done", scanTabId: null, scanEndedAt: Date.now() });
     return;
   }
@@ -1346,7 +1344,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return;
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════
     // ════ COMPANY SCANNER MESSAGE HANDLERS ═══════════════════════
     // ════════════════════════════════════════════════════════════════════
 
@@ -1493,7 +1491,6 @@ async function compScanNext() {
   const s = await getState();
   if (s.compScanRunning && s.compScanIndex < (s.compScanQueue || []).length) {
     // Small random jitter between companies so requests don't look machine-timed.
-    // ponytail: was 3-8s; bump back up if LinkedIn starts throwing checkpoints
     const delayMs = 500 + Math.floor(Math.random() * 1000);
     await sleep(delayMs);
     await scheduleNextCompScan();
@@ -1505,7 +1502,11 @@ async function _compScanNextInner() {
   if (!state.compScanRunning) return;
 
   if (state.compScanIndex >= (state.compScanQueue || []).length) {
-    notify('Company Scanner', 'Company scanner has finished processing all companies.');
+    chrome.notifications.create({
+      type: 'basic',
+      title: 'Company Scanner',
+      message: 'Company scanner has finished processing all companies.'
+    });
     await setState({ compScanRunning: false, compScanStatus: "done", compScanTabId: null, compScanEndedAt: Date.now() });
     return;
   }
@@ -1527,10 +1528,6 @@ async function _compScanNextInner() {
     await Promise.race([timeoutPromise, (async () => {
       // Normalize URL: convert Sales Navigator company URLs to public LinkedIn URLs
       let companyUrl = url;
-      // Sales Nav format: https://www.linkedin.com/sales/company/12345
-      // Public format: https://www.linkedin.com/company/name/
-      // We'll navigate to whatever they pasted — the content script handles both
-
       // Ensure it has /about/ suffix to get the details section
       if (!companyUrl.includes('/about')) {
         companyUrl = companyUrl.replace(/\/+$/, '') + '/about/';
@@ -1558,7 +1555,6 @@ async function _compScanNextInner() {
       // Wait only until the navigation COMMITS (url switches to the new company) —
       // not for the full page load. The content script polls the DOM itself and
       // returns as soon as the info is visible.
-      // ponytail: was 15s status==='complete' poll + fixed 3s SPA sleep
       await setState({ compScanStatus: `Loading company ${state.compScanIndex + 1} of ${state.compScanQueue.length}` });
 
       for (let i = 0; i < 27; i++) { // Max ~8s for the navigation to commit
