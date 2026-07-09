@@ -22,6 +22,7 @@ function escHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+
 let _previewLimit = 20;
 
 function renderPreview(rows, mode) {
@@ -52,7 +53,7 @@ function renderPreview(rows, mode) {
   }
 
   const itemsToRender = Math.min(rows.length, _previewLimit);
-
+  
   table.style.display = 'table';
   empty.style.display = 'none';
 
@@ -62,15 +63,15 @@ function renderPreview(rows, mode) {
       .reverse()
       .map(
         (r) => `
-          <tr>
-            <td title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</td>
-            <td title="${escHtml(r.industry)}">${escHtml(r.industry)}</td>
-            <td title="${escHtml(r.country)}">${escHtml(r.country)}</td>
-            <td title="${escHtml(r.website)}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.website ? `<a href="${escHtml(r.website)}" target="_blank" style="color:var(--neon-blue);text-decoration:none;">${escHtml(r.website)}</a>` : ''}</td>
-            <td title="${escHtml(r.employees)}">${escHtml(r.employees)}</td>
-            <td title="${escHtml(r.linkedin_profile_url)}" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escHtml(r.linkedin_profile_url)}" target="_blank" style="color:var(--neon-blue);text-decoration:none;">Link</a></td>
-          </tr>
-        `
+      <tr>
+        <td title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</td>
+        <td title="${escHtml(r.industry)}">${escHtml(r.industry)}</td>
+        <td title="${escHtml(r.country)}">${escHtml(r.country)}</td>
+        <td title="${escHtml(r.website)}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.website ? `<a href="${escHtml(r.website)}" target="_blank" style="color:var(--neon-blue);text-decoration:none;">${escHtml(r.website)}</a>` : ''}</td>
+        <td title="${escHtml(r.employees)}">${escHtml(r.employees)}</td>
+        <td title="${escHtml(r.linkedin_profile_url)}" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escHtml(r.linkedin_profile_url)}" target="_blank" style="color:var(--neon-blue);text-decoration:none;">Link</a></td>
+      </tr>
+    `
       )
       .join('');
   } else {
@@ -79,15 +80,15 @@ function renderPreview(rows, mode) {
       .reverse()
       .map(
         (r) => `
-          <tr>
-            <td title="${escHtml(r.full_name)}">${escHtml(r.full_name)}</td>
-            <td title="${escHtml(r.title)}">${escHtml(r.title)}</td>
-            <td title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</td>
-            <td title="${escHtml(r.industry)}">${escHtml(r.industry)}</td>
-            <td title="${escHtml(r.profile_location)}">${escHtml(r.profile_location)}</td>
-            <td title="${escHtml(r.employees)}">${escHtml(r.employees)}</td>
-          </tr>
-        `
+      <tr>
+        <td title="${escHtml(r.full_name)}">${escHtml(r.full_name)}</td>
+        <td title="${escHtml(r.title)}">${escHtml(r.title)}</td>
+        <td title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</td>
+        <td title="${escHtml(r.industry)}">${escHtml(r.industry)}</td>
+        <td title="${escHtml(r.profile_location)}">${escHtml(r.profile_location)}</td>
+        <td title="${escHtml(r.employees)}">${escHtml(r.employees)}</td>
+      </tr>
+    `
       )
       .join('');
   }
@@ -137,7 +138,7 @@ function renderScannerPreview(results) {
     } else {
       statusHtml = `<span style="color:var(--neon-red)">Inactive</span>`;
     }
-
+      
     let premiumHtml;
     if (r.is_premium === 'Skipped') {
       premiumHtml = `<span style="color:var(--neon-amber)">-</span>`;
@@ -146,10 +147,10 @@ function renderScannerPreview(results) {
     } else {
       premiumHtml = `<span style="color:var(--text-faint)">No</span>`;
     }
-
+       
     return `<tr>
       <td title="${escHtml(r.name)}">${escHtml(r.name)}</td>
-      <td title="${escHtml(r.profile_url)}"><a href="${escHtml(r.profile_url)}" target="_blank" style="color:var(--neon-blue); text-decoration:none;">Link</a></td>
+      <td title="${escHtml(r.profile_url)}"><a href="${r.profile_url}" target="_blank" style="color:var(--neon-blue); text-decoration:none;">Link</a></td>
       <td>${statusHtml}</td>
       <td>${premiumHtml}</td>
       <td>${escHtml(r.connection_count || '0')}</td>
@@ -203,11 +204,11 @@ async function refresh() {
   _lastMode = s.mode || 'people';
 
   if (!_initialTabSet) {
-    _initialTabSet = true;
-    let targetTab = localStorage.getItem('salesnavActiveTab') || 'searchScraperTab';
-    if (s.running) targetTab = 'searchScraperTab';
-    if (s.scanRunning) targetTab = 'profileScannerTab';
-    activateTab(targetTab);
+      _initialTabSet = true;
+      let targetTab = localStorage.getItem('salesnavActiveTab') || 'searchScraperTab';
+      if (s.running) targetTab = 'searchScraperTab';
+      if (s.scanRunning) targetTab = 'profileScannerTab';
+      activateTab(targetTab);
   }
 
   if (statusRes?.ok) {
@@ -232,13 +233,15 @@ async function refresh() {
 
   const history = histRes?.ok ? histRes.history || [] : [];
 
+
+
   const urlInput = document.getElementById('url').value.trim();
   document.getElementById('openStart').disabled = s.running || !urlInput;
   document.getElementById('start').disabled = s.running;
   document.getElementById('pause').disabled = !s.running;
   document.getElementById('downloadFinal').disabled = !(
-    s.status === 'done_no_next' ||
-    s.status === 'done_reached_max_profiles' ||
+    s.status === 'done_no_next' || 
+    s.status === 'done_reached_max_profiles' || 
     s.status === 'done_current_page_only'
   );
   document.getElementById('downloadNow').disabled = rows.length === 0;
@@ -257,32 +260,32 @@ async function refresh() {
   renderScannerPreview(scanResults);
   const scanned = (s.scanResults || []).length;
   document.getElementById('scannedCount').textContent = scanned;
-
+  
   const totalInQueue = (s.scanQueue || []).length;
   const qCount = Math.max(0, totalInQueue - (s.scanIndex || 0));
   document.getElementById('queueCount').textContent = qCount;
-
+  
   // Progress Bar updates
   const progressFill = document.getElementById('scannerProgressFill');
   const progressPercent = document.getElementById('scannerProgressPercent');
   const progressText = document.getElementById('scannerProgressText');
-
+  
   if (totalInQueue > 0) {
-    let processed = s.scanIndex || 0;
-    let effectiveProcessed = processed;
-    if (s.scanRunning && s.scanStartedAt && qCount > 0) {
-      const elapsedSec = Math.floor((Date.now() - s.scanStartedAt) / 1000);
-      const partialProfile = Math.max(0, Math.min(1, elapsedSec / 90));
-      effectiveProcessed += partialProfile;
-    }
-    const pct = Math.min(100, (effectiveProcessed / totalInQueue) * 100);
-    progressFill.style.width = `${pct}%`;
-    progressPercent.textContent = `${pct.toFixed(1)}%`;
-    progressText.textContent = `${processed} / ${totalInQueue}`;
+      let processed = s.scanIndex || 0;
+      let effectiveProcessed = processed;
+      if (s.scanRunning && s.scanStartedAt && qCount > 0) {
+          const elapsedSec = Math.floor((Date.now() - s.scanStartedAt) / 1000);
+          const partialProfile = Math.max(0, Math.min(1, elapsedSec / 90));
+          effectiveProcessed += partialProfile;
+      }
+      const pct = Math.min(100, (effectiveProcessed / totalInQueue) * 100);
+      progressFill.style.width = `${pct}%`;
+      progressPercent.textContent = `${pct.toFixed(1)}%`;
+      progressText.textContent = `${processed} / ${totalInQueue}`;
   } else {
-    progressFill.style.width = `0%`;
-    progressPercent.textContent = `0%`;
-    progressText.textContent = `0 / 0`;
+      progressFill.style.width = `0%`;
+      progressPercent.textContent = `0%`;
+      progressText.textContent = `0 / 0`;
   }
 
   // ETA countdown timer — total estimate minus elapsed time
@@ -309,7 +312,7 @@ async function refresh() {
   } else {
     etaEl.textContent = '\u2014';
   }
-
+  
   const elapsedEl = document.getElementById('scannerElapsed');
   if (s.scanGlobalStartedAt && s.scanStatus && s.scanStatus !== 'Ready') {
     let endMs;
@@ -339,11 +342,11 @@ async function refresh() {
   } else {
     if (elapsedEl) elapsedEl.textContent = '0s';
   }
-
-
+  
+  
   const scannerDot = document.getElementById('scannerStatusDot');
   if (scannerDot) scannerDot.className = 'status-dot' + (s.scanRunning ? ' active' : '');
-
+  
   if (statusRes?.ok) {
     document.getElementById('scannerStatus').textContent = s.scanStatus || 'Ready';
   }
@@ -351,11 +354,11 @@ async function refresh() {
   // A scan is only running if scanRunning is strictly true and not paused/done
   const isScanRunning = s.scanRunning === true && s.scanStatus !== 'paused' && s.scanStatus !== 'done';
   const isScanStopped = s.scanStatus === 'Ready' || !s.scanStatus || s.scanStatus === 'Stopped' || s.scanStatus === 'done';
-
+  
   // Disable start button if running or if input field is empty
   const urlInputVal = document.getElementById('scannerUrls').value.trim();
   document.getElementById('startScanner').disabled = isScanRunning || urlInputVal.length === 0;
-
+  
   document.getElementById('pauseScanner').disabled = isScanStopped || !isScanRunning;
   document.getElementById('stopScanner').disabled = isScanStopped;
   document.getElementById('downloadScanner').disabled = !(s.scanResults && s.scanResults.length > 0);
@@ -384,7 +387,7 @@ async function refresh() {
   const resurrectBtn = document.getElementById('resurrectScanner');
   resurrectBtn.disabled = !looksStuck;
   resurrectBtn.style.animation = looksStuck ? 'resurrectPulse 2s infinite' : 'none';
-
+  
   // Disable configuration fields while there's an active incomplete queue
   const hasIncompleteQueue = s.scanQueue && s.scanQueue.length > 0 && s.scanStatus !== 'done';
   const disableInputs = isScanRunning || hasIncompleteQueue;
@@ -409,14 +412,14 @@ async function refresh() {
             : '';
 
         return `
-          <div class="history-item">
-            <div>
-              <div style="font-weight:500">${escHtml(title)}</div>
-              <div class="history-meta">${escHtml(meta)}</div>
-            </div>
-            ${showBtn}
+        <div class="history-item">
+          <div>
+            <div style="font-weight:500">${escHtml(title)}</div>
+            <div class="history-meta">${escHtml(meta)}</div>
           </div>
-        `;
+          ${showBtn}
+        </div>
+      `;
       })
       .join('');
 
@@ -546,45 +549,47 @@ document.getElementById('startScanner').onclick = async () => {
   let urls = lines.filter(u => u.includes('linkedin.com/in/')).map(norm);
 
   if (invalidUrls.length > 0) {
-    showErrorToast(`${invalidUrls.length} URL(s) excluded (must contain "linkedin.com/in/")`);
+      showErrorToast(`${invalidUrls.length} URL(s) excluded (must contain "linkedin.com/in/")`);
   }
 
   if (urls.length === 0) {
-    showErrorToast('No valid LinkedIn profile URLs found.');
-    return;
+      showErrorToast('No valid LinkedIn profile URLs found.');
+      return;
   }
+
+
 
   const minConn = parseInt(document.getElementById('minConnections').value, 10) || 0;
   const minMonths = parseInt(document.getElementById('minActivityMonths').value, 10) || 3;
-
+  
   // Update UI to disabled while spinning up
   document.getElementById('startScanner').disabled = true;
 
   let force = false;
   if (_dailyCount + urls.length > 100) {
-    document.getElementById('limitModal').style.display = 'flex';
-
-    const userChoice = await new Promise((resolve) => {
-      document.getElementById('limitCancelBtn').onclick = () => {
-        document.getElementById('limitModal').style.display = 'none';
-        resolve(false);
-      };
-      document.getElementById('limitConfirmBtn').onclick = () => {
-        document.getElementById('limitModal').style.display = 'none';
-        resolve(true);
-      };
-    });
-
-    if (!userChoice) {
-      document.getElementById('startScanner').disabled = false;
-      return;
-    }
-    force = true;
+      document.getElementById('limitModal').style.display = 'flex';
+      
+      const userChoice = await new Promise((resolve) => {
+          document.getElementById('limitCancelBtn').onclick = () => {
+              document.getElementById('limitModal').style.display = 'none';
+              resolve(false);
+          };
+          document.getElementById('limitConfirmBtn').onclick = () => {
+              document.getElementById('limitModal').style.display = 'none';
+              resolve(true);
+          };
+      });
+      
+      if (!userChoice) {
+          document.getElementById('startScanner').disabled = false;
+          return;
+      }
+      force = true;
   }
-
+  
   const res = await send({ type: 'START_SCAN', urls, minConnections: minConn, minActivityMonths: minMonths, force });
   if (res && !res.ok && res.error) {
-    showErrorToast(res.error);
+      showErrorToast(res.error);
   }
   await refresh();
 };
@@ -640,10 +645,10 @@ document.getElementById('resetScanner').onclick = async function() {
   btn.classList.remove('confirming');
   btn.innerHTML = btn.dataset.originalHtml;
   btn.style.boxShadow = '';
-
+  
   // Clear the input text explicitly to return to initial stage
   document.getElementById('scannerUrls').value = '';
-
+  
   const res = await send({ type: 'RESET_SCAN' });
   if (res && !res.ok && res.error) {
     alert(res.error);
@@ -653,16 +658,16 @@ document.getElementById('resetScanner').onclick = async function() {
 
 // --- Tab Switching ---
 function activateTab(targetId) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-  const tabEl = document.querySelector(`.tab[data-tab="${targetId}"]`);
-  if (tabEl) tabEl.classList.add('active');
-
-  const contentEl = document.getElementById(targetId);
-  if (contentEl) contentEl.classList.add('active');
-
-  localStorage.setItem('salesnavActiveTab', targetId);
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    const tabEl = document.querySelector(`.tab[data-tab="${targetId}"]`);
+    if (tabEl) tabEl.classList.add('active');
+    
+    const contentEl = document.getElementById(targetId);
+    if (contentEl) contentEl.classList.add('active');
+    
+    localStorage.setItem('salesnavActiveTab', targetId);
 }
 
 document.querySelectorAll('.tab').forEach(tab => {
@@ -674,9 +679,9 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 document.getElementById('scannerUrls').addEventListener('input', refresh);
 
-// ══════════════════════════════════════════════════════════════════════
-  // ════ COMPANY SCANNER TAB LOGIC ══════════════════════
-// ═════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// ════ COMPANY SCANNER TAB LOGIC ══════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 
 let compPreviewLimit = 10;
 
@@ -842,6 +847,8 @@ document.getElementById('startCompScanner').onclick = async function() {
     showErrorToast('No valid LinkedIn company URLs found');
     return;
   }
+
+
 
   const res = await send({ type: 'START_COMPANY_SCAN', urls });
   if (res && !res.ok && res.error) {

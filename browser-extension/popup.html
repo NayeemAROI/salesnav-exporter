@@ -2,31 +2,99 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="color-scheme" content="light dark" />
   <title>SalesNav Exporter</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <style>
+    /* ════════════════════════════════════════════════════════════════
+       SalesNav Exporter — Claude design language
+       Warm paper surfaces · one clay accent · 8px grid · 36px controls
+       No remote fonts or icons. Light is primary; dark via media query.
+       ════════════════════════════════════════════════════════════════ */
+
     :root {
-      --bg: #171412;
-      --bg-card: #231f1b;
-      --bg-card-hover: #2e2924;
-      --surface: #1e1a16;
-      --glass: rgba(255, 245, 240, 0.04);
-      --glass-border: #332e28;
+      color-scheme: light;
 
-      --text: #faf5f0;
-      --text-dim: #b5a99a;
-      --text-faint: #7a7068;
+      /* Surfaces — warm paper */
+      --bg:            #FAF9F5;
+      --surface:       #FFFFFF;
+      --surface-2:     #F2F0E9;
+      --surface-hover: #F0EEE6;
 
-      --neon-blue: #f97316;
-      --neon-purple: #c084fc;
-      --neon-green: #22c55e;
-      --neon-pink: #fb923c;
-      --neon-amber: #f59e0b;
-      --neon-red: #ef4444;
+      /* Borders / dividers */
+      --border:        #E7E3D8;
+      --border-strong: #D9D4C7;
 
-      --radius: 8px;
-      --radius-sm: 6px;
+      /* Text */
+      --text:          #1F1E1D;
+      --text-dim:      #605C54;
+      --text-faint:    #938F86;
+
+      /* Accent — Claude clay */
+      --accent:        #CC785C;
+      --accent-hover:  #B4623F;
+      --accent-press:  #9E5334;
+      --accent-soft:   rgba(204,120,92,0.12);
+      --accent-ring:   rgba(204,120,92,0.35);
+      --on-accent:     #FFFFFF;
+
+      /* Status — muted, status-only */
+      --success:       #4F7A5B;  --success-soft: rgba(79,122,91,0.12);
+      --warning:       #B07A1E;  --warning-soft: rgba(176,122,30,0.12);
+      --danger:        #B0493B;  --danger-soft:  rgba(176,73,59,0.10);
+
+      /* Shape */
+      --radius:    10px;
+      --radius-sm: 8px;
+      --radius-xs: 6px;
+
+      /* Elevation */
+      --shadow-sm: 0 1px 2px rgba(31,30,29,0.05);
+      --shadow-md: 0 4px 14px rgba(31,30,29,0.08);
+      --scrim:     rgba(31,30,29,0.55);
+
+      /* Spacing scale */
+      --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px;
+
+      /* Type */
+      --font-serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
+      --font-sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI', system-ui, 'Helvetica Neue', Ubuntu, sans-serif;
+      --font-mono:  ui-monospace, 'SF Mono', 'Cascadia Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+      /* Compatibility aliases — popup.js injects inline styles that
+         reference these names. Do not use them in new CSS rules. */
+      --neon-blue:   var(--accent);
+      --neon-green:  var(--success);
+      --neon-amber:  var(--warning);
+      --neon-red:    var(--danger);
+      --neon-purple: var(--text-dim);
+      --text-secondary: var(--text-dim);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg:            #262624;
+        --surface:       #30302E;
+        --surface-2:     #292826;
+        --surface-hover: #383734;
+        --border:        #413F3B;
+        --border-strong: #4C4A45;
+        --text:          #F5F4EE;
+        --text-dim:      #B9B4A9;
+        --text-faint:    #857F76;
+        --accent:        #D97757;
+        --accent-hover:  #E08B6E;
+        --accent-press:  #C2664A;
+        --accent-soft:   rgba(217,119,87,0.16);
+        --accent-ring:   rgba(217,119,87,0.40);
+        --on-accent:     #241C18;
+        --success:#6FA07C; --success-soft:rgba(111,160,124,0.16);
+        --warning:#D2A24C; --warning-soft:rgba(210,162,76,0.16);
+        --danger:#D4796B;  --danger-soft: rgba(212,121,107,0.16);
+        --shadow-sm:0 1px 2px rgba(0,0,0,0.30);
+        --shadow-md:0 6px 18px rgba(0,0,0,0.40);
+        --scrim:    rgba(0,0,0,0.55);
+      }
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,367 +103,615 @@
       width: 420px;
       background: var(--bg);
       color: var(--text);
-      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      font-family: var(--font-sans);
       font-size: 13px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
 
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #332e28; border-radius: 4px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
 
-    /* ─── AppBar ─── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+
+    /* Material Icons webfont is gone; popup.js still injects
+       .material-icons-round ligature spans (e.g. "warning") — hide them
+       so raw glyph names never render. */
+    .material-icons-round { display: none !important; }
+
+    /* Inline SVG icons */
+    .ic {
+      width: 16px; height: 16px; flex: none;
+      fill: none; stroke: currentColor;
+      stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .ic-empty { width: 32px; height: 32px; opacity: 0.4; margin: 0 auto; display: block; }
+    .ic-modal { width: 40px; height: 40px; margin: 0 auto 12px; display: block; stroke-width: 1.5; }
+    .ic-modal.is-warning { color: var(--warning); }
+    .ic-modal.is-danger  { color: var(--danger); }
+
+    /* ─── App bar ─── */
     .app-bar {
       background: var(--bg);
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 16px;
+      gap: var(--s2);
+      padding: var(--s3) var(--s4);
       position: sticky; top: 0; z-index: 100;
     }
-    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .logo {
-      width: 32px; height: 32px;
-      background: var(--neon-blue);
-      border-radius: 8px;
+      width: 30px; height: 30px; flex: none;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
       display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 14px; color: #fff;
+      font-family: var(--font-serif);
+      font-weight: 600; font-size: 13px; color: #FFFFFF;
+      letter-spacing: 0.2px;
     }
     .brand-text .title {
-      font-weight: 700; font-size: 15px; letter-spacing: -0.3px;
-      color: var(--neon-blue);
+      font-family: var(--font-serif);
+      font-weight: 600; font-size: 16px; letter-spacing: -0.2px;
+      line-height: 1.2;
+      color: var(--text);
     }
-    .brand-text .subtitle { font-size: 11px; color: var(--text-dim); font-weight: 500; }
-    .header-right { display: flex; align-items: center; gap: 6px; }
+    .brand-text .subtitle { font-size: 11px; color: var(--text-dim); }
+    .header-right { display: flex; align-items: center; gap: var(--s2); }
 
-    /* Chips */
+    /* Run-status chip — dot is a ::before so popup.js can safely
+       overwrite textContent without destroying it. */
     .chip {
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.4px;
+      text-transform: uppercase;
+      padding: 4px 10px; border-radius: 999px;
+      background: var(--surface-2); color: var(--text-dim);
+      white-space: nowrap;
     }
-    .chip.running {
-      background: rgba(34, 197, 94, 0.15); color: var(--neon-green);
-      animation: chipPulse 2s infinite;
+    .chip::before {
+      content: ""; width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor; opacity: 0.7;
     }
-    @keyframes chipPulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
+    .chip.stopped { background: var(--surface-2); color: var(--text-dim); }
+    .chip.running { background: var(--success-soft); color: var(--success); }
+    .chip.running::before { animation: runningDot 2s ease-in-out infinite; }
+    @keyframes runningDot {
+      0%, 100% { opacity: 0.9; }
+      50% { opacity: 0.3; }
     }
-    .chip.stopped { background: rgba(239, 68, 68, 0.12); color: var(--neon-red); }
 
     .icon-btn {
       background: none; border: none; cursor: pointer;
-      color: var(--text-dim); width: 34px; height: 34px;
-      border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s;
+      color: var(--text-dim); width: 32px; height: 32px;
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      transition: background 150ms ease, color 150ms ease;
     }
-    .icon-btn:hover { background: var(--glass); color: var(--neon-blue); }
-    .icon-btn.active { background: rgba(249, 115, 22, 0.1); color: var(--neon-blue); }
+    .icon-btn:hover { background: var(--surface-hover); color: var(--text); }
+    .icon-btn.active { background: var(--accent-soft); color: var(--accent); }
 
-    /* ─── Settings ─── */
+    /* ─── Tabs ─── */
+    .tabs {
+      display: flex;
+      padding: 0 var(--s3);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1; text-align: center;
+      padding: var(--s3) var(--s1);
+      font-size: 13px; font-weight: 500; color: var(--text-dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 150ms ease, border-color 150ms ease;
+      white-space: nowrap;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+    .tab-content { display: none; }
+    .tab-content.active { display: flex; }
+
+    /* ─── Scope toggle bar ─── */
+    #pageScopeBar {
+      display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4);
+      align-items: center;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: var(--s3) var(--s4);
+    }
+    .scope-item {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--s2); min-width: 0;
+    }
+    .scope-label {
+      font-size: 12px; font-weight: 500; color: var(--text-dim);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* Toggle switch — 36×20 track, 16px knob */
+    .toggle-switch { position: relative; width: 36px; height: 20px; flex: none; display: inline-block; }
+    .toggle-switch input {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      opacity: 0; margin: 0; cursor: pointer; z-index: 1;
+    }
+    .toggle-switch .slider {
+      position: absolute; inset: 0;
+      background: var(--surface-2);
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      transition: background 150ms ease, border-color 150ms ease;
+    }
+    .toggle-switch .slider::before {
+      content: ""; position: absolute;
+      width: 16px; height: 16px; left: 1px; top: 1px;
+      background: var(--surface);
+      border-radius: 50%;
+      box-shadow: var(--shadow-sm);
+      transition: transform 150ms ease;
+    }
+    .toggle-switch input:checked + .slider {
+      background: var(--accent); border-color: var(--accent);
+    }
+    .toggle-switch input:checked + .slider::before { transform: translateX(16px); background: #FFFFFF; }
+    .toggle-switch input:focus-visible + .slider { box-shadow: 0 0 0 3px var(--accent-ring); }
+
+    /* ─── Settings panel (hidden by design; kept functional) ─── */
     #settingsPanel {
-      display: none; background: var(--bg-card);
-      border-bottom: 1px solid var(--glass-border);
-      padding: 14px 16px;
+      display: none;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: var(--s3) var(--s4);
     }
-    #settingsPanel.open { display: block; animation: fadeSlide 0.2s ease-out; }
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateY(-6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
+    #settingsPanel.open { display: block; }
     .setting-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 5px 0;
+      gap: var(--s2);
+      padding: 6px 0;
     }
     .setting-label { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+    .setting-hint { display: block; font-size: 10px; color: var(--text-faint); font-weight: 400; }
     .setting-select {
-      background: var(--surface); border: 1px solid var(--glass-border);
-      border-radius: 6px; padding: 5px 28px 5px 10px;
+      height: 36px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 0 28px 0 12px;
       font-family: inherit; font-size: 12px; color: var(--text);
       cursor: pointer; appearance: none;
-      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23b5a99a'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
-      background-repeat: no-repeat; background-position: right 4px center; background-size: 18px;
-      transition: border-color 0.2s;
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23605C54' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e");
+      background-repeat: no-repeat; background-position: right 8px center; background-size: 14px;
+      transition: border-color 150ms ease;
     }
-    .setting-select:focus { outline: none; border-color: var(--neon-blue); }
+    .setting-select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    @media (prefers-color-scheme: dark) {
+      .setting-select {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B9B4A9' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e");
+      }
+    }
 
     /* ─── Container ─── */
-    .container { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+    .container {
+      padding: var(--s3);
+      flex-direction: column; gap: var(--s3);
+    }
 
     /* ─── Cards ─── */
     .card {
-      background: var(--bg-card);
-      border: 1px solid var(--glass-border);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
       overflow: hidden;
-      transition: border-color 0.2s;
+      transition: border-color 150ms ease;
     }
-    .card:hover { border-color: #3d3832; }
+    .card:hover { border-color: var(--border-strong); }
     .card-header {
-      padding: 10px 16px;
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 1px; color: var(--text-faint);
-      border-bottom: 1px solid var(--glass-border);
+      padding: var(--s3) var(--s4);
+      border-bottom: 1px solid var(--border);
       display: flex; justify-content: space-between; align-items: center;
+      gap: var(--s2);
     }
-    .card-body { padding: 16px; }
+    .card-title {
+      font-family: var(--font-serif);
+      font-size: 13px; font-weight: 600; letter-spacing: -0.1px;
+      line-height: 1.2;
+      color: var(--text);
+    }
+    .card-header-group { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+    .card-body { padding: var(--s4); display: flex; flex-direction: column; gap: 14px; }
 
-    /* ─── Status ─── */
+    /* Count / quota chips (textContent-only hooks) */
+    .chip-count {
+      font-size: 10px; font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      padding: 2px 8px; border-radius: var(--radius-xs);
+      background: var(--accent-soft); color: var(--accent);
+      min-width: 24px; text-align: center;
+    }
+    .chip-quota {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.2px;
+      font-variant-numeric: tabular-nums;
+      padding: 3px 8px; border-radius: var(--radius-xs);
+      background: var(--surface-2); color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    /* ─── Status row ─── */
     .status-row {
       display: flex; align-items: center; gap: 10px;
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--glass-border);
+      padding: var(--s3) var(--s4);
+      border-bottom: 1px solid var(--border);
     }
     .status-dot {
       width: 8px; height: 8px; border-radius: 50%;
-      background: var(--text-faint); flex-shrink: 0;
-      transition: all 0.3s;
+      background: var(--text-faint); flex: none;
+      transition: background 300ms ease;
     }
     .status-dot.active {
-      background: var(--neon-green);
-      animation: dotPulse 1.5s infinite;
+      background: var(--success);
+      animation: runningDot 2s ease-in-out infinite;
     }
-    @keyframes dotPulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    #status {
-      font-family: 'JetBrains Mono', monospace;
+    .status-row > div:not(.status-dot),
+    #status, #scannerStatus, #compScannerStatus {
+      font-family: var(--font-mono);
       font-size: 11px; color: var(--text-dim);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
     }
     .mode-chip {
-      font-size: 9px; font-weight: 700; text-transform: uppercase;
-      padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;
-      background: rgba(249, 115, 22, 0.1); color: var(--neon-blue);
-      border: 1px solid rgba(249, 115, 22, 0.2);
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      padding: 3px 8px; border-radius: var(--radius-xs); letter-spacing: 0.4px;
+      background: var(--accent-soft); color: var(--accent);
+      white-space: nowrap;
     }
 
-    /* ─── Stats Grid ─── */
+    /* ─── Stats grid ─── */
     .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .stats-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
     .stat-cell {
-      padding: 12px 10px;
-      border-right: 1px solid var(--glass-border);
-      position: relative; overflow: hidden;
-      transition: background 0.2s;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
+      padding: var(--s3) var(--s4);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; justify-content: center; gap: 4px;
       min-width: 0;
     }
-    .stat-cell:hover { background: var(--glass); }
     .stat-cell:last-child { border-right: none; }
-    .stat-cell:nth-child(n+5) { border-top: 1px solid var(--glass-border); }
+    .stats-grid:not(.cols-2) .stat-cell:nth-child(n+5) { border-top: 1px solid var(--border); }
+    .stats-grid.cols-2 .stat-cell:nth-child(n+3) { border-top: 1px solid var(--border); }
+    .stats-grid:not(.cols-2) .stat-cell { padding: var(--s3) var(--s3); }
+    .stats-grid:not(.cols-2) .stat-cell:first-child { padding-left: var(--s4); }
+    .stats-grid:not(.cols-2) .stat-cell:last-child { padding-right: var(--s4); }
     .stat-label {
-      font-size: 10px; color: var(--text-faint);
-      text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
-      display: flex; align-items: center; gap: 5px; margin-bottom: 4px;
+      font-size: 10px; color: var(--text-dim);
+      letter-spacing: 0.3px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+      white-space: nowrap; overflow: hidden;
     }
-    .stat-label .material-icons-round { font-size: 14px; }
+    .stat-label .ic { width: 14px; height: 14px; color: var(--text-faint); }
     .stat-value {
-      font-size: 18px; font-weight: 800; letter-spacing: -0.2px;
+      font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .stat-value.neon-blue { color: var(--neon-blue); }
-    .stat-value.neon-green { color: var(--neon-green); }
-    .stat-value.neon-red { color: var(--neon-red); }
-    .stat-value.neon-purple { color: var(--neon-purple); }
+    .stat-value.is-accent { color: var(--accent); }
+    .stat-value.is-mono {
+      font-family: var(--font-mono);
+      font-size: 15px; font-weight: 600; letter-spacing: 0; line-height: 1.7;
+    }
 
     /* ─── Progress ─── */
-    .progress-section {
-      padding: 12px 16px;
-      border-top: 1px solid var(--glass-border);
+    .progress-wrap {
+      padding: var(--s3) var(--s4);
+      border-top: 1px solid var(--border);
     }
-    .progress-label {
-      display: flex; justify-content: space-between;
-      font-size: 10px; color: var(--text-faint); margin-bottom: 6px;
-      text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+    .progress-bar {
+      position: relative; height: 24px;
+      background: var(--surface-2);
+      border-radius: var(--radius-xs);
+      overflow: hidden;
     }
-    .progress-track {
-      height: 4px; background: #2e2924; border-radius: 2px; overflow: hidden;
-      position: relative;
+    .progress-bar-fill {
+      height: 100%; width: 0%;
+      background: var(--accent);
+      border-radius: var(--radius-xs);
+      transition: width 400ms ease;
     }
-    .progress-fill {
-      height: 100%;
-      background: var(--neon-blue);
-      width: 0%; border-radius: 2px;
-      transition: width 0.4s ease;
+    .progress-bar-label {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center; gap: var(--s2);
+      font-family: var(--font-mono);
+      font-size: 11px; font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .progress-bar-label .progress-sep { opacity: 0.5; }
+    @media (prefers-color-scheme: dark) {
+      .progress-bar-label { text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
     }
 
-    /* ─── Inputs ─── */
-    .field { margin-bottom: 14px; }
-    .field:last-child { margin-bottom: 0; }
+    /* ─── Fields ─── */
+    .field { display: flex; flex-direction: column; gap: 6px; }
     .field label {
-      display: block; font-size: 10px; font-weight: 600;
-      color: var(--text-faint); margin-bottom: 5px;
-      text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    .field input, .field textarea {
-      width: 100%; box-sizing: border-box;
-      background: var(--bg); border: 1px solid var(--glass-border);
-      color: var(--text); padding: 10px 12px; border-radius: var(--radius-sm);
-      font-family: 'Inter', sans-serif; font-size: 13px;
-      transition: border-color 0.2s; outline: none; resize: vertical;
-    }
-    .field input:focus, .field textarea:focus {
-      border-color: var(--neon-blue);
-    }
-    .field input::placeholder, .field textarea::placeholder { color: var(--text-faint); }
-
-    /* ─── Tabs ─── */
-    .tabs { display: flex; border-bottom: 1px solid var(--glass-border); padding: 0 16px; background: var(--bg); margin-bottom: 8px;}
-    .tab { padding: 12px 16px; font-size: 13px; font-weight: 500; color: var(--text-faint); cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.2s, border-color 0.2s; }
-    .tab:hover { color: var(--text); }
-    .tab.active { color: var(--neon-blue); border-bottom-color: var(--neon-blue); }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
-    /* ─── Buttons ─── */
-    .actions { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-    .btn-row { display: flex; gap: 8px; }
-
-    button {
-      flex: 1; padding: 9px 14px;
-      font-family: inherit; font-size: 12px; font-weight: 600;
-      border-radius: var(--radius-sm); border: 1px solid var(--glass-border);
-      background: var(--surface); color: var(--text-dim);
-      cursor: pointer; display: inline-flex;
-      align-items: center; justify-content: center; gap: 5px;
-      transition: all 0.15s ease; white-space: nowrap;
-      position: relative; overflow: hidden;
-    }
-    button .material-icons-round { font-size: 16px; }
-    button:hover:not(:disabled) {
-      background: var(--bg-card-hover); border-color: #3d3832;
-      color: var(--text); transform: translateY(-1px);
-    }
-    button:active:not(:disabled) { transform: translateY(0) scale(0.98); }
-    button:disabled { opacity: 0.3; cursor: not-allowed; }
-
-    /* Primary (warm orange) */
-    .btn-primary {
-      background: var(--neon-blue);
-      border-color: var(--neon-blue);
-      color: #fff; font-weight: 700;
-    }
-    .btn-primary:hover:not(:disabled) {
-      background: #fb923c;
-      border-color: #fb923c;
-      color: #fff;
-    }
-
-    /* Success (green) */
-    .btn-success {
-      border-color: rgba(34, 197, 94, 0.4); color: var(--neon-green);
-    }
-    .btn-success:hover:not(:disabled) {
-      background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.6);
-    }
-
-    /* Amber */
-    .btn-amber {
-      border-color: rgba(245, 158, 11, 0.4); color: var(--neon-amber);
-    }
-    .btn-amber:hover:not(:disabled) {
-      background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.6);
-    }
-
-    /* Danger */
-    .btn-danger {
-      border: none; background: none; color: var(--neon-red);
-    }
-    .btn-danger:hover:not(:disabled) {
-      background: rgba(239, 68, 68, 0.1);
-    }
-
-    /* ─── Table ─── */
-    .table-wrap { max-height: 180px; overflow-y: auto; overflow-x: auto; padding-bottom: 8px; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
-    th {
-      background: var(--bg); color: var(--text-faint); font-weight: 600;
-      text-align: left; padding: 8px 8px; font-size: 10px;
-      text-transform: uppercase; letter-spacing: 0.5px;
-      border-bottom: 1px solid var(--glass-border);
-      position: sticky; top: 0; z-index: 1;
-    }
-    td {
-      padding: 7px 8px; border-bottom: 1px solid var(--glass-border);
-      max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
       color: var(--text-dim);
     }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--glass); color: var(--text); }
-    .empty-state {
-      padding: 30px 16px; text-align: center; color: var(--text-faint); font-size: 12px;
+    .field input, .field textarea {
+      width: 100%;
+      background: var(--surface-2); border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      font-family: inherit; font-size: 13px;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+      outline: none; resize: vertical;
     }
-    .empty-state .material-icons-round {
-      font-size: 36px; display: block; margin: 0 auto 8px;
-      opacity: 0.3; color: var(--neon-blue);
+    .field input { height: 36px; padding: 0 var(--s3); }
+    .field textarea { padding: 10px var(--s3); min-height: 112px; line-height: 1.5; }
+    .field input:focus, .field textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
     }
-
-    /* ─── Collapsible ─── */
-    .card-header.toggle { cursor: pointer; user-select: none; }
-    .card-header.toggle:hover { background: var(--glass); }
-    .card-header .chevron {
-      transition: transform 0.25s ease; font-size: 18px; color: var(--text-faint);
-    }
-    .card-header.toggle.collapsed .chevron { transform: rotate(-90deg); }
-    .collapsible {
-      max-height: 500px; overflow: hidden;
-      transition: max-height 0.3s ease;
-    }
-    .collapsible.collapsed { max-height: 0; }
-
-    /* ─── History ─── */
-    .history-list { max-height: 110px; overflow-y: auto; }
-    .history-item {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 8px 16px;
-      border-bottom: 1px solid var(--glass-border);
-      font-size: 11px; transition: background 0.2s;
-    }
-    .history-item:last-child { border-bottom: none; }
-    .history-item:hover { background: var(--glass); }
-    .history-meta { font-size: 10px; color: var(--text-faint); }
-
-    /* ─── Toast ─── */
-    .toast {
-      position: fixed; bottom: 16px; left: 50%;
-      transform: translateX(-50%) translateY(80px);
-      background: var(--bg-card);
-      border: 1px solid var(--neon-blue);
-      color: var(--neon-blue); padding: 10px 20px; border-radius: var(--radius-sm);
-      font-size: 13px; font-weight: 600;
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 1000;
-    }
-    .toast.show { transform: translateX(-50%) translateY(0); }
+    .field input::placeholder, .field textarea::placeholder { color: var(--text-faint); }
+    .field input:disabled, .field textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
-    @keyframes resurrectPulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
+    /* ─── Buttons ─── */
+    .actions {
+      padding: 0 var(--s4) var(--s4);
+      display: flex; flex-direction: column; gap: var(--s2);
+    }
+    .card > .actions:first-child { padding-top: var(--s4); }
+    .status-row + .actions, .stats-grid + .actions { padding-top: var(--s4); }
+    .btn-row { display: flex; gap: var(--s2); }
+
+    button {
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-dim);
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 0 14px;
+      transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
+      white-space: nowrap;
+    }
+    .btn-row button, .modal-actions button { flex: 1; height: 36px; }
+    button:hover:not(:disabled) {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+    button:active:not(:disabled) { transform: scale(0.98); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: transparent;
+      color: var(--on-accent);
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent); }
+    .btn-primary:active:not(:disabled) { background: var(--accent-press); }
+
+    .btn-quiet { background: transparent; border-color: transparent; color: var(--text-dim); }
+    .btn-quiet:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+
+    .btn-danger { background: transparent; border-color: transparent; color: var(--danger); }
+    .btn-danger:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+    .btn-danger.btn-strong { border-color: var(--danger); }
+
+    /* Destructive confirm state — class added by popup.js.
+       box-shadow !important neutralizes the inline glow the JS sets. */
+    button.confirming {
+      background: var(--danger) !important;
+      border-color: var(--danger) !important;
+      color: #FFFFFF !important;
+      box-shadow: none !important;
+    }
+
+    /* "Skip Stuck" rescue action — quiet until it becomes available */
+    #resurrectScanner:not(:disabled) {
+      background: var(--warning-soft);
+      border-color: transparent;
+      color: var(--warning);
+    }
+    #resurrectScanner:not(:disabled):hover { background: var(--warning-soft); color: var(--warning); }
+
+    /* Small quiet "Show more" button under tables (display managed by JS) */
+    .table-more { text-align: center; padding: var(--s2) var(--s4) var(--s3); }
+    .table-more button {
+      height: 28px; padding: 0 var(--s3);
+      font-size: 11px;
+      background: transparent; border-color: var(--border);
+      color: var(--text-dim);
+    }
+    .table-more button:hover { background: var(--surface-hover); color: var(--text); }
+
+    /* Tiny clear button in history header */
+    .btn-xs {
+      height: 24px; padding: 0 var(--s2);
+      font-size: 10px; font-weight: 600;
+      border-radius: var(--radius-xs);
+    }
+
+    /* ─── Tables ─── */
+    .table-wrap { max-height: 180px; overflow-y: auto; overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 12px; white-space: nowrap;
+    }
+    th {
+      background: var(--surface-2); color: var(--text-dim); font-weight: 600;
+      text-align: left; padding: var(--s2);
+      font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 1;
+    }
+    td {
+      padding: 7px var(--s2);
+      border-bottom: 1px solid var(--border);
+      max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--text-dim);
+    }
+    th:first-child, td:first-child { padding-left: var(--s4); }
+    th:last-child, td:last-child { padding-right: var(--s4); }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface-hover); color: var(--text); }
+
+    /* popup.js hard-codes gold #FFD700 + glow on Premium "Yes" —
+       recolor to the muted warning token, kill the glow. */
+    td span[style*="FFD700"] { color: var(--warning) !important; text-shadow: none !important; }
+    /* popup.js injects "No history yet" with inline #999 */
+    #history div[style*="#999"] { color: var(--text-dim) !important; }
+
+    .empty-state {
+      padding: var(--s8) var(--s4);
+      text-align: center; color: var(--text-faint); font-size: 12px;
+      flex-direction: column; align-items: center; justify-content: center; gap: var(--s2);
+    }
+    .empty-state .ic-empty { margin-bottom: var(--s2); }
+
+    /* ─── Collapsibles ─── */
+    .card-header.toggle { cursor: pointer; user-select: none; }
+    .card-header.toggle:hover { background: var(--surface-hover); }
+    .card-header .chevron {
+      width: 16px; height: 16px; flex: none;
+      color: var(--text-faint);
+      transition: transform 250ms ease;
+    }
+    .card-header.toggle.collapsed .chevron { transform: rotate(-90deg); }
+    .card-header.toggle.collapsed { border-bottom-color: transparent; }
+    .collapsible { max-height: 520px; overflow: hidden; transition: max-height 300ms ease; }
+    .collapsible.collapsed { max-height: 0; }
+
+    /* ─── History ─── */
+    .history-list { max-height: 132px; overflow-y: auto; }
+    .history-item {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: var(--s2);
+      padding: 10px var(--s4);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      transition: background 150ms ease;
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-item:hover { background: var(--surface-hover); }
+    .history-meta { font-size: 10px; color: var(--text-faint); }
+
+    /* ─── Toasts ─── */
+    .toast {
+      position: fixed; bottom: var(--s4); left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      display: flex; align-items: center; gap: var(--s2);
+      background: var(--surface);
+      border: 1px solid var(--success);
+      color: var(--success);
+      padding: 10px var(--s4);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-md);
+      font-size: 12px; font-weight: 600;
+      transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1000;
+      pointer-events: none;
+      max-width: 380px;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast .ic { stroke-width: 2; }
+    .toast.toast-error { border-color: var(--danger); color: var(--danger); align-items: flex-start; }
+    .toast.toast-error .ic { margin-top: 1px; }
+    #errorToastMsg { max-width: 280px; white-space: normal; word-wrap: break-word; text-align: left; }
+
+    /* ─── Modals ─── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: var(--scrim);
+      backdrop-filter: blur(2px);
+      z-index: 9999;
+      align-items: center; justify-content: center;
+      padding: var(--s5);
+    }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      padding: var(--s6);
+      width: 100%; max-width: 320px;
+      text-align: center;
+    }
+    .modal-title {
+      font-family: var(--font-serif);
+      font-size: 16px; font-weight: 600; letter-spacing: -0.1px;
+      color: var(--text);
+      margin-bottom: var(--s2);
+    }
+    .modal-body {
+      font-size: 13px; color: var(--text-dim); line-height: 1.5;
+      margin-bottom: var(--s5);
+    }
+    .modal-actions { display: flex; gap: var(--s2); justify-content: center; }
+
+    /* ─── Reduced motion ─── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 </head>
 
 <body>
-  <!-- AppBar -->
+  <!-- Inline SVG icon sprite (Lucide-style, 1.75px stroke, currentColor) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <defs>
+      <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 4.5v15a0.5 0.5 0 0 0 .77.42l11.5-7.5a0.5 0.5 0 0 0 0-.84L6.77 4.08A0.5 0.5 0 0 0 6 4.5z"></path></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></symbol>
+      <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"></rect></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path><path d="M12 15V3"></path></symbol>
+      <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></symbol>
+      <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"></path><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"></path></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></symbol>
+      <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></symbol>
+      <symbol id="i-retry" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></symbol>
+      <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"></path></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+      <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 10h18"></path><path d="M10 4v16"></path></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+      <symbol id="i-pages" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></symbol>
+      <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></symbol>
+      <symbol id="i-timer" viewBox="0 0 24 24"><path d="M10 2h4"></path><path d="m12 14 3-3"></path><circle cx="12" cy="14" r="8"></circle></symbol>
+      <symbol id="i-alert-triangle" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></symbol>
+      <symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></symbol>
+      <symbol id="i-alert-octagon" viewBox="0 0 24 24"><path d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86z"></path><path d="M12 8v4"></path><path d="M12 16h.01"></path></symbol>
+    </defs>
+  </svg>
+
+  <!-- App bar -->
   <div class="app-bar">
     <div class="brand">
       <div class="logo">SN</div>
       <div class="brand-text">
         <div class="title">SalesNav Exporter</div>
-        <div class="subtitle">Fast export · Zero profile views</div>
+        <div class="subtitle">Fast export &middot; Zero profile views</div>
       </div>
     </div>
     <div class="header-right">
       <span class="chip stopped" id="runBadge">Stopped</span>
       <!-- Settings are locked to CSV · Fast · all pages · Deep Fetch ON and hidden from the UI. -->
       <button class="icon-btn" id="settingsToggle" title="Settings" style="display:none">
-        <span class="material-icons-round" style="font-size:20px">tune</span>
+        <svg class="ic" aria-hidden="true"><use href="#i-list"></use></svg>
       </button>
     </div>
   </div>
@@ -406,17 +722,17 @@
     <div class="tab" data-tab="companyScannerTab">Company Scanner</div>
   </div>
 
-  <!-- User choices surfaced on top — kept on one line to save space -->
-  <div id="pageScopeBar" style="display:flex; gap:16px; align-items:center; background: var(--bg-card); border-bottom: 1px solid var(--glass-border); padding: 10px 16px;">
-    <div class="setting-row" style="flex:1; padding:0; gap:8px;">
-      <span class="setting-label">Current Page Only</span>
+  <!-- Scope toggles -->
+  <div id="pageScopeBar">
+    <div class="scope-item">
+      <span class="scope-label">Current Page Only</span>
       <label class="toggle-switch">
         <input type="checkbox" id="currentPageOnly" />
         <span class="slider round"></span>
       </label>
     </div>
-    <div class="setting-row" style="flex:1; padding:0; gap:8px;">
-      <span class="setting-label" title="Slower — looks up each company's website via LinkedIn (company searches).">Fetch Website</span>
+    <div class="scope-item">
+      <span class="scope-label" title="Slower — looks up each company's website via LinkedIn (company searches).">Fetch Website</span>
       <label class="toggle-switch">
         <input type="checkbox" id="companyDeepBtn" />
         <span class="slider round"></span>
@@ -435,15 +751,14 @@
     <div class="setting-row">
       <span class="setting-label">Scraping speed</span>
       <select id="scrollSpeed" class="setting-select">
-        <option value="fast" selected>⚡ Fast</option>
-        <option value="medium">🔄 Medium</option>
-        <option value="safe">🛡️ Safe</option>
+        <option value="fast" selected>Fast</option>
+        <option value="medium">Medium</option>
+        <option value="safe">Safe</option>
       </select>
     </div>
     <div class="setting-row">
-      <span class="setting-label" style="display:flex; flex-direction:column; gap:2px;">
-        Deep Fetch (Industry)
-        <span style="font-size:9px; color:var(--text-faint); font-weight:normal;">Looks up each company's industry via LinkedIn's API.</span>
+      <span class="setting-label">Deep Fetch (Industry)
+        <span class="setting-hint">Looks up each company's industry via LinkedIn's API.</span>
       </span>
       <label class="toggle-switch">
         <input type="checkbox" id="deepFetchBtn" checked />
@@ -452,86 +767,86 @@
     </div>
   </div>
 
+  <!-- ═══ Search Scraper ═══ -->
   <div class="container tab-content active" id="searchScraperTab">
-    <!-- Stats Card -->
+    <!-- Stats -->
     <div class="card">
       <div class="status-row">
         <div class="status-dot" id="statusDot"></div>
         <div id="status">Ready</div>
-        <span class="mode-chip" id="modeBadge">—</span>
+        <span class="mode-chip" id="modeBadge">&mdash;</span>
       </div>
-
-      <div class="stats-grid">
+      <div class="stats-grid cols-2">
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">group</span> Profiles</div>
-          <div class="stat-value neon-blue" id="rowCount">0</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-users"></use></svg>Profiles</div>
+          <div class="stat-value is-accent" id="rowCount">0</div>
         </div>
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">auto_stories</span> Pages</div>
-          <div class="stat-value neon-purple" id="pageCount">0</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-pages"></use></svg>Pages</div>
+          <div class="stat-value" id="pageCount">0</div>
         </div>
       </div>
     </div>
 
-    <!-- Controls Card -->
+    <!-- Controls -->
     <div class="card">
       <div class="card-header">
-        <span>🎯 Target & Controls</span>
+        <span class="card-title">Target &amp; Controls</span>
       </div>
       <div class="card-body">
         <div class="field">
-          <label>Sales Navigator URL</label>
+          <label for="url">Sales Navigator URL</label>
           <input type="text" id="url" placeholder="Paste your search URL here..." />
         </div>
         <div class="field">
-          <label>Max Profiles</label>
+          <label for="maxProfiles">Max Profiles</label>
           <input type="number" id="maxProfiles" min="1" placeholder="Leave empty for all" />
         </div>
       </div>
       <div class="actions">
         <div class="btn-row">
           <button class="btn-primary" id="openStart" style="flex:2">
-            <span class="material-icons-round">rocket_launch</span> Open & Start
+            <svg class="ic" aria-hidden="true"><use href="#i-rocket"></use></svg> Open &amp; Start
           </button>
-          <button class="btn-success" id="start">
-            <span class="material-icons-round">play_arrow</span> Start
+          <button id="start">
+            <svg class="ic" aria-hidden="true"><use href="#i-play"></use></svg> Start
           </button>
         </div>
         <div class="btn-row">
-          <button class="btn-amber" id="pause">
-            <span class="material-icons-round">pause</span> Pause
+          <button class="btn-quiet" id="pause">
+            <svg class="ic" aria-hidden="true"><use href="#i-pause"></use></svg> Pause
           </button>
           <button class="btn-primary" id="downloadFinal" disabled>
-            <span class="material-icons-round">download_done</span> Finish
+            <svg class="ic" aria-hidden="true"><use href="#i-check-circle"></use></svg> Finish
           </button>
         </div>
         <div class="btn-row">
           <button id="downloadNow" disabled>
-            <span class="material-icons-round">save_alt</span> Save
+            <svg class="ic" aria-hidden="true"><use href="#i-download"></use></svg> Save
           </button>
           <button id="downloadJsonBtn" disabled>
-            <span class="material-icons-round">data_object</span> JSON
+            <svg class="ic" aria-hidden="true"><use href="#i-braces"></use></svg> JSON
           </button>
           <button id="copyBtn" disabled>
-            <span class="material-icons-round">content_copy</span> Copy
+            <svg class="ic" aria-hidden="true"><use href="#i-copy"></use></svg> Copy
           </button>
         </div>
         <div class="btn-row">
           <button class="btn-danger" id="reset">
-            <span class="material-icons-round">restart_alt</span> Reset Session
+            <svg class="ic" aria-hidden="true"><use href="#i-reset"></use></svg> Reset Session
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Preview Card -->
+    <!-- Preview -->
     <div class="card" id="previewSection">
       <div class="card-header toggle collapsed" id="previewToggle">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span>📊 Data Preview</span>
-          <span class="chip" id="previewCount" style="background:rgba(249,115,22,0.1); color:var(--neon-blue); border:1px solid rgba(249,115,22,0.2);">0</span>
+        <div class="card-header-group">
+          <span class="card-title">Data Preview</span>
+          <span class="chip-count" id="previewCount">0</span>
         </div>
-        <span class="material-icons-round chevron">expand_more</span>
+        <svg class="ic chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
       </div>
       <div class="collapsible collapsed" id="previewContent">
         <div class="table-wrap">
@@ -539,25 +854,25 @@
             <thead><tr><th>Name</th><th>Title</th><th>Company</th><th>Industry</th><th>Location</th><th>Employees</th></tr></thead>
             <tbody id="previewBody"></tbody>
           </table>
-          <div style="text-align: center; margin-top: 8px; display: none;" id="previewActions">
-            <button id="showMorePreviewBtn" style="padding: 4px 12px; font-size: 11px; background: rgba(249,115,22,0.1); color: var(--neon-blue); border: 1px solid rgba(249,115,22,0.2);">Show More</button>
+          <div class="table-more" id="previewActions" style="display:none;">
+            <button id="showMorePreviewBtn">Show More</button>
           </div>
           <div class="empty-state" id="previewEmpty">
-            <span class="material-icons-round">table_chart</span>
+            <svg class="ic ic-empty" aria-hidden="true"><use href="#i-table"></use></svg>
             No data collected yet
           </div>
         </div>
       </div>
     </div>
 
-    <!-- History Card -->
+    <!-- History -->
     <div class="card">
       <div class="card-header toggle collapsed" id="historyToggle">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span>📁 Session History</span>
-          <button class="btn-danger" id="clearHistory" style="padding:2px 8px; font-size:10px; border-radius:4px;" onclick="event.stopPropagation()">Clear</button>
+        <div class="card-header-group">
+          <span class="card-title">Session History</span>
+          <button class="btn-danger btn-xs" id="clearHistory">Clear</button>
         </div>
-        <span class="material-icons-round chevron">expand_more</span>
+        <svg class="ic chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
       </div>
       <div class="collapsible collapsed" id="historyContent">
         <div class="history-list" id="history"></div>
@@ -565,103 +880,103 @@
     </div>
   </div>
 
-  <!-- Profile Scanner Tab -->
+  <!-- ═══ Profile Scanner ═══ -->
   <div class="container tab-content" id="profileScannerTab">
     <div class="card">
-      <div class="card-header" style="justify-content:space-between; display:flex;">
-        <span>🔍 Deep Profile Scanner</span>
-        <span id="dailyRemaining" style="background:rgba(192,132,252,0.15); color:var(--neon-purple); padding:2px 6px; border-radius:4px; font-weight:700;">Remaining: --</span>
+      <div class="card-header">
+        <span class="card-title">Deep Profile Scanner</span>
+        <span class="chip-quota" id="dailyRemaining">Remaining: --</span>
       </div>
-      <div class="card-body" style="padding: 16px;">
+      <div class="card-body">
         <div class="field">
-          <label>LinkedIn Profile URLs (one per line)</label>
+          <label for="scannerUrls">LinkedIn Profile URLs (one per line)</label>
           <textarea id="scannerUrls" rows="6" placeholder="https://www.linkedin.com/in/johndoe&#10;https://www.linkedin.com/in/janedoe"></textarea>
         </div>
         <div class="field">
-          <label>Min. Required Connections</label>
+          <label for="minConnections">Min. Required Connections</label>
           <input type="number" id="minConnections" min="0" placeholder="100" value="100" />
         </div>
         <div class="field">
-          <label>Activity within X Months</label>
+          <label for="minActivityMonths">Activity Within X Months</label>
           <input type="number" id="minActivityMonths" min="1" placeholder="3" title="Only count activity if it occurred within this many months" value="3" />
         </div>
       </div>
       <div class="actions">
         <div class="btn-row">
-          <button class="btn-success" id="startScanner" style="flex:2">
-            <span class="material-icons-round">play_arrow</span> Start Scanning
+          <button class="btn-primary" id="startScanner" style="flex:2">
+            <svg class="ic" aria-hidden="true"><use href="#i-play"></use></svg> Start Scanning
           </button>
-          <button class="btn-amber" id="pauseScanner" style="flex:1">
-            <span class="material-icons-round">pause</span> Pause
+          <button class="btn-quiet" id="pauseScanner">
+            <svg class="ic" aria-hidden="true"><use href="#i-pause"></use></svg> Pause
           </button>
-          <button class="btn-danger" id="stopScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); border-radius:6px; padding:6px 12px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; height:34px;">
-            <span class="material-icons-round">stop</span> Stop
-          </button>
-        </div>
-        <div class="btn-row">
-          <button id="resurrectScanner" disabled style="flex:1; border:1px solid rgba(168,85,247,0.4); border-radius:6px; padding:8px 12px; font-weight:700; font-size:11px; display:flex; align-items:center; justify-content:center; gap:4px; color:var(--neon-purple); background:rgba(168,85,247,0.1);">
-            <span class="material-icons-round" style="font-size:15px;">bolt</span> Skip Stuck
-          </button>
-          <button id="retryFailed" disabled style="flex:1; border:1px solid rgba(255,184,0,0.3); color:var(--neon-amber); font-weight:600;">
-            <span class="material-icons-round">replay</span> Retry (<span id="failedCount">0</span>)
-          </button>
-          <button id="resetScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); color:var(--neon-red); font-weight:600;">
-            <span class="material-icons-round">restart_alt</span> Reset
+          <button class="btn-danger" id="stopScanner">
+            <svg class="ic" aria-hidden="true"><use href="#i-stop"></use></svg> Stop
           </button>
         </div>
         <div class="btn-row">
-          <button id="downloadScanner" class="btn-primary" disabled style="width:100%">
-            <span class="material-icons-round">download</span> Export Results
+          <button id="resurrectScanner" disabled>
+            <svg class="ic" aria-hidden="true"><use href="#i-zap"></use></svg> Skip Stuck
+          </button>
+          <button id="retryFailed" disabled>
+            <svg class="ic" aria-hidden="true"><use href="#i-retry"></use></svg> Retry (<span id="failedCount">0</span>)
+          </button>
+          <button class="btn-danger" id="resetScanner">
+            <svg class="ic" aria-hidden="true"><use href="#i-reset"></use></svg> Reset
+          </button>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="downloadScanner" disabled>
+            <svg class="ic" aria-hidden="true"><use href="#i-download"></use></svg> Export Results
           </button>
         </div>
       </div>
     </div>
-    
-    <!-- Scanner Stats -->
-    <div class="card" style="margin-bottom: 12px;">
-       <div class="status-row">
+
+    <!-- Scanner stats -->
+    <div class="card">
+      <div class="status-row">
         <div class="status-dot" id="scannerStatusDot"></div>
         <div id="scannerStatus">Ready</div>
         <span class="mode-chip" id="scannerModeBadge">Scanner</span>
       </div>
       <div class="stats-grid">
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">check_circle</span> Scanned</div>
-          <div class="stat-value neon-green" id="scannedCount">0</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-check-circle"></use></svg>Scanned</div>
+          <div class="stat-value is-accent" id="scannedCount">0</div>
         </div>
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">pending</span> Queued</div>
-          <div class="stat-value neon-blue" id="queueCount">0</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-list"></use></svg>Queued</div>
+          <div class="stat-value" id="queueCount">0</div>
         </div>
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">schedule</span> ETA</div>
-          <div class="stat-value neon-purple" id="scannerEta" style="font-size: 16px;">—</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg>ETA</div>
+          <div class="stat-value is-mono" id="scannerEta">&mdash;</div>
         </div>
         <div class="stat-cell" id="scannerElapsedCell">
-          <div class="stat-label"><span class="material-icons-round">timer</span> Elapsed</div>
-          <div class="stat-value text-secondary" id="scannerElapsed" style="font-size: 16px;">0s</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-timer"></use></svg>Elapsed</div>
+          <div class="stat-value is-mono" id="scannerElapsed">0s</div>
         </div>
       </div>
-      <div style="padding: 10px 16px;">
-        <div style="position:relative; height:28px; background:#2e2924; border-radius:6px; overflow:hidden;">
-          <div id="scannerProgressFill" style="height:100%; background:var(--neon-blue); width:0%; border-radius:6px; transition:width 0.4s ease; "></div>
-          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px; font-size:12px; font-weight:700; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.5);">
+      <div class="progress-wrap">
+        <div class="progress-bar">
+          <div class="progress-bar-fill" id="scannerProgressFill"></div>
+          <div class="progress-bar-label">
             <span id="scannerProgressPercent">0%</span>
-            <span style="opacity:0.6;">·</span>
-            <span id="scannerProgressText" style="font-weight:500;">0 / 0</span>
+            <span class="progress-sep">&middot;</span>
+            <span id="scannerProgressText">0 / 0</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Scanner Preview Card -->
+    <!-- Scanner preview -->
     <div class="card" id="scannerPreviewSection">
       <div class="card-header toggle" id="scannerPreviewToggle">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span>📊 Scanner Preview</span>
-          <span class="chip" id="scannerPreviewCount" style="background:rgba(249,115,22,0.1); color:var(--neon-blue); border:1px solid rgba(249,115,22,0.2);">0</span>
+        <div class="card-header-group">
+          <span class="card-title">Scanner Preview</span>
+          <span class="chip-count" id="scannerPreviewCount">0</span>
         </div>
-        <span class="material-icons-round chevron">expand_more</span>
+        <svg class="ic chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
       </div>
       <div class="collapsible" id="scannerPreviewContent">
         <div class="table-wrap">
@@ -669,11 +984,11 @@
             <thead><tr><th>Name</th><th>Profile URL</th><th>Status</th><th>Premium</th><th>Connections</th><th>Last Activity</th></tr></thead>
             <tbody id="scannerPreviewBody"></tbody>
           </table>
-          <div style="text-align: center; margin-top: 8px; display: none;" id="scannerPreviewActions">
-            <button id="showMoreScannerPreviewBtn" style="padding: 4px 12px; font-size: 11px; background: rgba(249,115,22,0.1); color: var(--neon-blue); border: 1px solid rgba(249,115,22,0.2);">Show More</button>
+          <div class="table-more" id="scannerPreviewActions" style="display:none;">
+            <button id="showMoreScannerPreviewBtn">Show More</button>
           </div>
           <div class="empty-state" id="scannerPreviewEmpty">
-            <span class="material-icons-round">table_chart</span>
+            <svg class="ic ic-empty" aria-hidden="true"><use href="#i-table"></use></svg>
             No profiles scanned yet
           </div>
         </div>
@@ -681,88 +996,88 @@
     </div>
   </div>
 
-  <!-- Company Scanner Tab -->
+  <!-- ═══ Company Scanner ═══ -->
   <div class="container tab-content" id="companyScannerTab">
     <div class="card">
-      <div class="card-header" style="justify-content:space-between; display:flex;">
-        <span>🏢 Deep Company Scanner</span>
+      <div class="card-header">
+        <span class="card-title">Deep Company Scanner</span>
       </div>
-      <div class="card-body" style="padding: 16px;">
+      <div class="card-body">
         <div class="field">
-          <label>LinkedIn Company URLs (one per line)</label>
+          <label for="compScannerUrls">LinkedIn Company URLs (one per line)</label>
           <textarea id="compScannerUrls" rows="6" placeholder="https://www.linkedin.com/company/google&#10;https://www.linkedin.com/company/microsoft"></textarea>
         </div>
       </div>
       <div class="actions">
         <div class="btn-row">
-          <button class="btn-success" id="startCompScanner" style="flex:2">
-            <span class="material-icons-round">play_arrow</span> Start Scanning
+          <button class="btn-primary" id="startCompScanner" style="flex:2">
+            <svg class="ic" aria-hidden="true"><use href="#i-play"></use></svg> Start Scanning
           </button>
-          <button class="btn-amber" id="pauseCompScanner" style="flex:1">
-            <span class="material-icons-round">pause</span> Pause
+          <button class="btn-quiet" id="pauseCompScanner">
+            <svg class="ic" aria-hidden="true"><use href="#i-pause"></use></svg> Pause
           </button>
-          <button class="btn-danger" id="stopCompScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); border-radius:6px; padding:6px 12px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; height:34px;">
-            <span class="material-icons-round">stop</span> Stop
-          </button>
-        </div>
-        <div class="btn-row">
-          <button id="resetCompScanner" style="flex:1; border:1px solid rgba(255,59,92,0.3); color:var(--neon-red); font-weight:600;">
-            <span class="material-icons-round">restart_alt</span> Reset
+          <button class="btn-danger" id="stopCompScanner">
+            <svg class="ic" aria-hidden="true"><use href="#i-stop"></use></svg> Stop
           </button>
         </div>
         <div class="btn-row">
-          <button id="downloadCompScanner" class="btn-primary" disabled style="width:100%">
-            <span class="material-icons-round">download</span> Export Results
+          <button class="btn-danger" id="resetCompScanner">
+            <svg class="ic" aria-hidden="true"><use href="#i-reset"></use></svg> Reset
+          </button>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="downloadCompScanner" disabled>
+            <svg class="ic" aria-hidden="true"><use href="#i-download"></use></svg> Export Results
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Company Scanner Stats -->
-    <div class="card" style="margin-bottom: 12px;">
-       <div class="status-row">
+    <!-- Company stats -->
+    <div class="card">
+      <div class="status-row">
         <div class="status-dot" id="compScannerStatusDot"></div>
         <div id="compScannerStatus">Ready</div>
         <span class="mode-chip" id="compScannerModeBadge">Company</span>
       </div>
       <div class="stats-grid">
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">check_circle</span> Scanned</div>
-          <div class="stat-value neon-green" id="compScannedCount">0</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-check-circle"></use></svg>Scanned</div>
+          <div class="stat-value is-accent" id="compScannedCount">0</div>
         </div>
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">pending</span> Queued</div>
-          <div class="stat-value neon-blue" id="compQueueCount">0</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-list"></use></svg>Queued</div>
+          <div class="stat-value" id="compQueueCount">0</div>
         </div>
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">schedule</span> ETA</div>
-          <div class="stat-value neon-purple" id="compScannerEta" style="font-size: 16px;">—</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-clock"></use></svg>ETA</div>
+          <div class="stat-value is-mono" id="compScannerEta">&mdash;</div>
         </div>
         <div class="stat-cell">
-          <div class="stat-label"><span class="material-icons-round">timer</span> Elapsed</div>
-          <div class="stat-value text-secondary" id="compScannerElapsed" style="font-size: 16px;">0s</div>
+          <div class="stat-label"><svg class="ic" aria-hidden="true"><use href="#i-timer"></use></svg>Elapsed</div>
+          <div class="stat-value is-mono" id="compScannerElapsed">0s</div>
         </div>
       </div>
-      <div style="padding: 10px 16px;">
-        <div style="position:relative; height:28px; background:#2e2924; border-radius:6px; overflow:hidden;">
-          <div id="compScannerProgressFill" style="height:100%; background:var(--neon-green); width:0%; border-radius:6px; transition:width 0.4s ease; "></div>
-          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px; font-size:12px; font-weight:700; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.5);">
+      <div class="progress-wrap">
+        <div class="progress-bar">
+          <div class="progress-bar-fill" id="compScannerProgressFill"></div>
+          <div class="progress-bar-label">
             <span id="compScannerProgressPercent">0%</span>
-            <span style="opacity:0.6;">·</span>
-            <span id="compScannerProgressText" style="font-weight:500;">0 / 0</span>
+            <span class="progress-sep">&middot;</span>
+            <span id="compScannerProgressText">0 / 0</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Company Scanner Preview Card -->
+    <!-- Company preview -->
     <div class="card" id="compScannerPreviewSection">
       <div class="card-header toggle" id="compScannerPreviewToggle">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span>📊 Company Preview</span>
-          <span class="chip" id="compScannerPreviewCount" style="background:rgba(34,197,94,0.1); color:var(--neon-green); border:1px solid rgba(34,197,94,0.2);">0</span>
+        <div class="card-header-group">
+          <span class="card-title">Company Preview</span>
+          <span class="chip-count" id="compScannerPreviewCount">0</span>
         </div>
-        <span class="material-icons-round chevron">expand_more</span>
+        <svg class="ic chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
       </div>
       <div class="collapsible" id="compScannerPreviewContent">
         <div class="table-wrap">
@@ -770,11 +1085,11 @@
             <thead><tr><th>Name</th><th>Website</th><th>Industry</th><th>Size</th><th>HQ</th><th>Founded</th></tr></thead>
             <tbody id="compScannerPreviewBody"></tbody>
           </table>
-          <div style="text-align: center; margin-top: 8px; display: none;" id="compScannerPreviewActions">
-            <button id="showMoreCompScannerPreviewBtn" style="padding: 4px 12px; font-size: 11px; background: rgba(34,197,94,0.1); color: var(--neon-green); border: 1px solid rgba(34,197,94,0.2);">Show More</button>
+          <div class="table-more" id="compScannerPreviewActions" style="display:none;">
+            <button id="showMoreCompScannerPreviewBtn">Show More</button>
           </div>
           <div class="empty-state" id="compScannerPreviewEmpty">
-            <span class="material-icons-round">table_chart</span>
+            <svg class="ic ic-empty" aria-hidden="true"><use href="#i-table"></use></svg>
             No companies scanned yet
           </div>
         </div>
@@ -782,42 +1097,43 @@
     </div>
   </div>
 
+  <!-- Toasts -->
   <div class="toast" id="copyToast">
-    <span class="material-icons-round" style="font-size:16px;vertical-align:middle;margin-right:4px;">check_circle</span>
+    <svg class="ic" aria-hidden="true"><use href="#i-check-circle"></use></svg>
     Copied to clipboard
   </div>
 
-  <div class="toast" id="errorToast" style="background: var(--bg-card); border: 1px solid var(--neon-red); color: #ef4444;">
-    <span class="material-icons-round" style="font-size:16px;vertical-align:top;margin-right:4px;margin-top:2px;">error</span>
-    <span id="errorToastMsg" style="display:inline-block; max-width: 250px; text-align:left; word-wrap: break-word;">Error</span>
+  <div class="toast toast-error" id="errorToast">
+    <svg class="ic" aria-hidden="true"><use href="#i-alert-circle"></use></svg>
+    <span id="errorToastMsg">Error</span>
   </div>
 
-  <!-- Confirmation Modal -->
-  <div id="limitModal" style="display:none; position:fixed; inset:0; background:rgba(23,20,18,0.9); z-index:9999; align-items:center; justify-content:center; padding:20px;">
-    <div class="card" style="width:100%; max-width:320px; text-align:center; padding:24px 20px; border-color:rgba(245,158,11,0.4);">
-      <span class="material-icons-round" style="color:var(--neon-amber); font-size:48px; margin-bottom:12px;">warning_amber</span>
-      <h3 style="color:#fff; font-size:16px; margin:0 0 8px 0; font-weight:700;">Scan Limit Reached</h3>
-      <p style="color:var(--text-secondary); font-size:13px; line-height:1.5; margin:0 0 20px 0;">
+  <!-- Scan limit modal -->
+  <div id="limitModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <svg class="ic ic-modal is-warning" aria-hidden="true"><use href="#i-alert-triangle"></use></svg>
+      <h3 class="modal-title">Scan Limit Reached</h3>
+      <p class="modal-body">
         You are about to scan more than 100 profiles today.<br><br>
         <strong>Proceed at your own risk!</strong>
       </p>
-      <div style="display:flex; gap:12px; justify-content:center;">
-        <button id="limitCancelBtn" style="flex:1; background:transparent; border:1px solid rgba(255,255,255,0.1); color:var(--text-secondary); padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer;">Cancel</button>
-        <button id="limitConfirmBtn" style="flex:1; background:var(--neon-amber); border:none; color:#000; padding:8px 16px; border-radius:6px; font-weight:700; cursor:pointer;">I Understand</button>
+      <div class="modal-actions">
+        <button id="limitCancelBtn">Cancel</button>
+        <button class="btn-danger btn-strong" id="limitConfirmBtn">I Understand</button>
       </div>
     </div>
   </div>
 
-  <!-- Batch Limit Modal -->
-  <div id="batchLimitModal" style="display:none; position:fixed; inset:0; background:rgba(23,20,18,0.9); z-index:9999; align-items:center; justify-content:center; padding:20px;">
-    <div class="card" style="width:100%; max-width:320px; text-align:center; padding:24px 20px; border-color:rgba(239,68,68,0.4);">
-      <span class="material-icons-round" style="color:#ef4444; font-size:48px; margin-bottom:12px;">error_outline</span>
-      <h3 style="color:#fff; font-size:16px; margin:0 0 8px 0; font-weight:700;">Batch Limit Exceeded!</h3>
-      <p style="color:var(--text-secondary); font-size:13px; line-height:1.5; margin:0 0 20px 0;">
+  <!-- Batch limit modal -->
+  <div id="batchLimitModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <svg class="ic ic-modal is-danger" aria-hidden="true"><use href="#i-alert-octagon"></use></svg>
+      <h3 class="modal-title">Batch Limit Exceeded</h3>
+      <p class="modal-body">
         You can only scan a maximum of <strong>50 profiles</strong> at a time to prevent LinkedIn restrictions.
       </p>
-      <div style="display:flex; justify-content:center;">
-        <button id="batchLimitOkayBtn" style="width:100%; background:#ef4444; border:none; color:#fff; padding:8px 16px; border-radius:6px; font-weight:700; cursor:pointer;">Okay</button>
+      <div class="modal-actions">
+        <button class="btn-primary" id="batchLimitOkayBtn">Okay</button>
       </div>
     </div>
   </div>
