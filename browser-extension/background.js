@@ -1,6 +1,13 @@
 const STATE_KEY = "salesnav_export_state";
 const HISTORY_KEY = "salesnav_export_history";
 const SCAN_DAILY_KEY = "salesnav_scan_daily";
+
+// Notification icon. chrome.notifications.create({type:'basic'}) requires an
+// iconUrl, and omitting it throws on some Chrome versions. We ship a tiny
+// inline data: URL so notifications always render and never depend on a
+// packaged icon file being present.
+const NOTIF_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
 // --- Daily Scan Counter ---
 async function getDailyScannedCount() {
   const data = await chrome.storage.local.get(SCAN_DAILY_KEY);
@@ -557,7 +564,7 @@ async function _scanNextInner() {
 
     chrome.notifications.create({
       type: 'basic',
-      iconUrl: 'icon128.png', // Assuming default extension icon
+      iconUrl: NOTIF_ICON,
       title: 'Deep Profile Scanner',
       message: 'Scanner has finished processing all profiles in the queue.'
     });
@@ -937,7 +944,7 @@ async function _scanNextInner() {
     // Immediately finalize — no delay, no extra loop iteration
     chrome.notifications.create({
       type: 'basic',
-      iconUrl: 'icon128.png',
+      iconUrl: NOTIF_ICON,
       title: 'Deep Profile Scanner',
       message: 'Scanner has finished processing all profiles in the queue.'
     });
@@ -1346,7 +1353,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return;
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════
     // ════ COMPANY SCANNER MESSAGE HANDLERS ═══════════════════════
     // ════════════════════════════════════════════════════════════════════
 
@@ -1507,7 +1514,7 @@ async function _compScanNextInner() {
   if (state.compScanIndex >= (state.compScanQueue || []).length) {
     chrome.notifications.create({
       type: 'basic',
-      iconUrl: 'icon128.png',
+      iconUrl: NOTIF_ICON,
       title: 'Company Scanner',
       message: 'Company scanner has finished processing all companies.'
     });
