@@ -154,7 +154,8 @@
    * flow automatically; we only need the CSRF token.
    *
    *   • One request per UNIQUE company (cached), not per lead.
-   *   • Bounded concurrency so we don't hammer the endpoint.
+   *   • Requests are SERIAL with human-like jitter to keep the request
+   *     pattern from looking machine-timed (reduces anti-bot exposure).
    *   • Any error / missing field → '' (leave blank, never guess).
    * ═════════════════════════════════════ */
   const industryCache = new Map(); // companyId -> industry ('' = resolved, none found)
@@ -257,20 +258,25 @@
     return industry;
   }
 
-  /** Resolve many company ids with bounded concurrency → Map(id → industry). */
-  async function resolveIndustries(companyIds, concurrency = 5) {
+  /**
+   * Resolve many company ids → Map(id → industry).
+   *
+   * Requests are issued SERIALLY (never in parallel) with a randomized delay
+   * between each, so the traffic doesn't look like a machine-timed burst of
+   * private-API calls. This is a deliberate anti-ban trade-off: Deep Fetch is
+   * a bit slower, but the request pattern is far less detectable. The
+   * `concurrency` arg is kept for compatibility but effectively pinned to 1.
+   */
+  async function resolveIndustries(companyIds, concurrency = 1) {
     const ids = [...new Set(companyIds.filter(Boolean))];
     const map = new Map();
-    let i = 0;
-    async function worker() {
-      while (i < ids.length) {
-        const id = ids[i++];
-        map.set(id, await fetchCompanyIndustry(id));
-      }
+    // Human-like jitter between calls (400–1200ms) to avoid machine-timed bursts.
+    const jitter = () => 400 + Math.floor(Math.random() * 800);
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      map.set(id, await fetchCompanyIndustry(id));
+      if (i < ids.length - 1) await sleep(jitter());
     }
-    await Promise.all(
-      Array.from({ length: Math.min(concurrency, ids.length) }, worker)
-    );
     return map;
   }
 
