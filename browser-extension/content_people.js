@@ -153,8 +153,8 @@
    * CSRF token.
    *
    *   • One request per UNIQUE company (cached), not per lead.
-   *   • SERIAL requests with random jitter so traffic never looks
-   *     machine-timed / bursty (reduces anti-bot fingerprint).
+   *   • Bounded concurrency (5) for speed. NOTE: this is faster but a stronger
+   *     anti-bot signal than serial requests — chosen per user preference.
    *   • Any error / missing field → '' (leave blank, never guess).
    * ═════════════════════════════════════ */
   const industryCache = new Map(); // companyId -> industry ('' = resolved, none found)
@@ -257,28 +257,20 @@
     return industry;
   }
 
-  /**
-   * Resolve many company ids SERIALLY (one request at a time) with a random
-   * delay between each → Map(id → industry).
-   *
-   * Rationale: firing 5 concurrent authenticated calls to LinkedIn's private
-   * Voyager API is a strong bot signal. Going one-at-a-time with human-like
-   * jitter keeps the same result while looking far less machine-timed. Cached
-   * ids cost nothing (no request, no delay).
-   */
-  async function resolveIndustries(companyIds) {
+  /** Resolve many company ids with bounded concurrency → Map(id → industry). */
+  async function resolveIndustries(companyIds, concurrency = 5) {
     const ids = [...new Set(companyIds.filter(Boolean))];
     const map = new Map();
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      const cached = industryCache.has(id);
-      map.set(id, await fetchCompanyIndustry(id));
-      // Jitter only when we actually hit the network (skip cache hits and the
-      // final id) so bulk pages don't look like a timed burst.
-      if (!cached && i < ids.length - 1) {
-        await sleep(400 + Math.floor(Math.random() * 800)); // 400–1200ms
+    let i = 0;
+    async function worker() {
+      while (i < ids.length) {
+        const id = ids[i++];
+        map.set(id, await fetchCompanyIndustry(id));
       }
     }
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, ids.length) }, worker)
+    );
     return map;
   }
 
@@ -542,9 +534,9 @@
 
   /* ═════════════════════════════════════
    * SCROLL ENGINE
-   * Walks the virtualized list to force every lead card to render.
-   * Early-exits the instant all 25 cards are present (full page), so a
-   * complete page settles in a few seconds instead of finishing the walk.
+   * Walks the full virtualized list top→bottom so every lead card renders.
+   * No early-exit: we always complete the walk (per user preference) so the
+   * whole page is scanned even if the DOM briefly reports 25 cards.
    * ═════════════════════════════════════ */
   function findScrollContainers() {
     const containers = [];
@@ -576,30 +568,26 @@
     const countCards = () => document.querySelectorAll(`${SEL.card} ${SEL.leadLink}`).length;
 
     // Sales Navigator packs exactly 25 leads per page except the last one.
-    // If "Next" is enabled this is a full page, so the target is 25 and we can
-    // STOP THE INSTANT all 25 are in the DOM — no need to finish the walk.
-    // On the last page Next is gone → target unknown, so we settle when a whole
-    // pass adds nothing new.
+    // If "Next" is enabled this is a full page, so we know to wait for 25 and
+    // never stop short at 20–23. On the last page Next is gone → target unknown,
+    // so we fall back to "stop when a whole pass adds nothing new".
     const EXPECTED = findNextButton() ? 25 : 0;
     const DEADLINE = Date.now() + 40000; // hard cap so we can never hang
 
     scrollTo(containers, 0);
     await sleep(300);
 
-    // Fast path: everything is already loaded (e.g. short page / cached).
-    if (EXPECTED && countCards() >= EXPECTED) { scrollTo(containers, 0); await sleep(100); return; }
-
     let prevPassCount = -1;
     while (Date.now() < DEADLINE) {
-      // One gentle top→bottom pass. We DO early-exit mid-pass the moment every
-      // card is present, which is what shaves a full page from ~15s to a few sec.
+      // One full, gentle top→bottom pass. We deliberately DON'T early-exit when
+      // the card count is reached — walking the whole list with a dwell at each
+      // step is what gives every card's sections time to lazy-load.
       let pos = 0, maxS = maxScroll(containers);
       while (pos < maxS && Date.now() < DEADLINE) {
         pos += STEP;
         scrollTo(containers, Math.min(pos, maxS)); // never overshoot past the bottom
         await sleep(320); // dwell so sections can render
         maxS = maxScroll(containers); // list may grow as rows load
-        if (EXPECTED && countCards() >= EXPECTED) { scrollTo(containers, 0); await sleep(100); return; }
       }
       await sleep(400); // settle at the bottom
 
