@@ -1,0 +1,12 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>SalesNav Exporter — Offscreen</title>
+  </head>
+  <body>
+    <!-- Invisible offscreen document. Its only job is to mint blob: URLs for
+         downloads, which MV3 service workers cannot do (no URL.createObjectURL). -->
+    <script src="offscreen.js"></script>
+  </body>
+</html>
