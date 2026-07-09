@@ -89,13 +89,14 @@ if (!window._salesNavProfileScannerInstalled) {
   // ═══════════════════════════════════════════════════
   // HELPER: Decode LinkedIn Snowflake ID to timestamp
   // LinkedIn activity URNs contain IDs where the first 41 bits = Unix epoch ms
+  // (NOT a Twitter-style custom epoch — no offset is added).
   // ═══════════════════════════════════════════════════
   function decodeSnowflakeTimestamp(idStr) {
     try {
       const id = BigInt(idStr);
-      // LinkedIn Snowflake: top 41 bits are timestamp in ms since a custom epoch
-      // The epoch offset is approximately 1288834974657 (Twitter-compatible)
-      const timestamp = Number(id >> 22n) + 1288834974657;
+      // Top 41 bits are the timestamp in ms since the Unix epoch. LinkedIn does
+      // not use a custom epoch, so we take the shifted value directly.
+      const timestamp = Number(id >> 22n);
       const date = new Date(timestamp);
       // Sanity check: should be between 2010 and 2030
       if (date.getFullYear() >= 2010 && date.getFullYear() <= 2030) {
