@@ -3,8 +3,8 @@ import { readFile, writeFile } from "node:fs/promises";
 async function patch(path, replacements) {
   let source = await readFile(path, "utf8");
   for (const [before, after] of replacements) {
-    if (!source.includes(before)) throw new Error(`Expected source not found in ${path}: ${before.slice(0, 80)}`);
-    source = source.replace(before, after);
+    if (source.includes(before)) source = source.replace(before, after);
+    else if (!source.includes(after)) throw new Error(`Expected source not found in ${path}: ${before.slice(0, 80)}`);
   }
   await writeFile(path, source);
 }
@@ -14,14 +14,8 @@ await patch("app/dashboard/DashboardClient.tsx", [
     `const esc = (v: unknown) => { const s = String(v ?? "").replace(/"/g, '\"\"'); return /[,"\\n\\r]/.test(s) ? \`"\${s}"\` : s; };`,
     `const esc = (v: unknown) => {\n      let s = String(v ?? "");\n      if (/^[=+\\-@]/.test(s)) s = "'" + s;\n      s = s.replace(/"/g, '\"\"');\n      return /[,"\\n\\r]/.test(s) ? \`"\${s}"\` : s;\n    };`
   ],
-  [
-    `}, [cookieSaved, searchUrl, maxResults, liAt, jsessionId]);`,
-    `}, [cookieSaved, searchUrl, maxResults, liAt, jsessionId, proxyCountry]);`
-  ],
-  [
-    `}, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths]);`,
-    `}, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths, proxyCountry]);`
-  ]
+  [`}, [cookieSaved, searchUrl, maxResults, liAt, jsessionId]);`, `}, [cookieSaved, searchUrl, maxResults, liAt, jsessionId, proxyCountry]);`],
+  [`}, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths]);`, `}, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths, proxyCountry]);`]
 ]);
 
 await patch("app/salesnav-exporter/page.tsx", [
