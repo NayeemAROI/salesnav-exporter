@@ -2,15 +2,12 @@ import { NextRequest } from "next/server";
 import type { LinkedInCookie, ProxyConfig } from "./linkedin-scraper";
 
 const MAX_BODY_BYTES = 256_000;
-const MAX_ACTIVE_JOBS = Math.max(1, Number(process.env.MAX_ACTIVE_SCRAPE_JOBS || 2));
+const MAX_ACTIVE_JOBS = 1;
 const ALLOWED_PROXY_COUNTRIES = new Set(["bd", "us", "gb", "in", "ca", "au", "de"]);
-
 const state = globalThis as typeof globalThis & { __activeScrapeJobs?: number };
 
 export class ApiInputError extends Error {
-  constructor(message: string, public status = 400) {
-    super(message);
-  }
+  constructor(message: string, public status = 400) { super(message); }
 }
 
 export function assertBodySize(req: NextRequest) {
@@ -44,7 +41,8 @@ export function boundedString(value: unknown, name: string, max = 500) {
 }
 
 export function boundedStrings(value: unknown, name: string, maxItems: number, maxLength = 500) {
-  if (!Array.isArray(value)) return [];
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw new ApiInputError(`${name} must be an array`);
   if (value.length > maxItems) throw new ApiInputError(`${name} exceeds the ${maxItems} item limit`);
   return value.map((item) => boundedString(item, name, maxLength));
 }
@@ -53,16 +51,10 @@ export function linkedinUrl(value: unknown, kind: "profile" | "sales") {
   const raw = boundedString(value, "URL", 2_000);
   let url: URL;
   try { url = new URL(raw); } catch { throw new ApiInputError("Invalid URL"); }
-  if (url.protocol !== "https:" || url.hostname !== "www.linkedin.com") {
-    throw new ApiInputError("Only https://www.linkedin.com URLs are allowed");
-  }
-  if (kind === "profile" && !url.pathname.startsWith("/in/")) throw new ApiInputError("Invalid LinkedIn profile URL");
-  if (kind === "sales" && ![/^\/sales\/search\/(people|company)/, /^\/sales\/lists\/(people|company|companies|accounts)/].some((rule) => rule.test(url.pathname))) {
-    throw new ApiInputError("Invalid Sales Navigator URL");
-  }
-  url.username = "";
-  url.password = "";
-  url.hash = "";
+  if (url.protocol !== "https:" || url.hostname !== "www.linkedin.com") throw new ApiInputError("Only https://www.linkedin.com URLs are allowed");
+  if (kind === "profile" && !/^\/in\/[^/]+\/?$/.test(url.pathname)) throw new ApiInputError("Invalid LinkedIn profile URL");
+  if (kind === "sales" && ![/^\/sales\/search\/(people|company)/, /^\/sales\/lists\/(people|company|companies|accounts)/].some((rule) => rule.test(url.pathname))) throw new ApiInputError("Invalid Sales Navigator URL");
+  url.username = ""; url.password = ""; url.hash = "";
   return url.toString();
 }
 
@@ -70,25 +62,17 @@ export function googleMapsUrl(value: unknown) {
   const raw = boundedString(value, "Maps URL", 2_000);
   let url: URL;
   try { url = new URL(raw); } catch { throw new ApiInputError("Invalid Maps URL"); }
-  if (url.protocol !== "https:" || !new Set(["www.google.com", "google.com", "maps.google.com"]).has(url.hostname) || !url.pathname.startsWith("/maps")) {
-    throw new ApiInputError("Only Google Maps HTTPS URLs are allowed");
-  }
-  url.username = "";
-  url.password = "";
+  if (url.protocol !== "https:" || !new Set(["www.google.com", "google.com", "maps.google.com"]).has(url.hostname) || !url.pathname.startsWith("/maps")) throw new ApiInputError("Only Google Maps HTTPS URLs are allowed");
+  url.username = ""; url.password = ""; url.hash = "";
   return url.toString();
 }
 
 export function sanitizeLinkedInCookies(value: unknown): LinkedInCookie[] {
   if (!Array.isArray(value) || value.length > 10) throw new ApiInputError("Invalid cookies");
   const allowed = new Set(["li_at", "JSESSIONID"]);
-  const cookies = value
-    .filter((cookie) => cookie && typeof cookie === "object" && allowed.has(String(cookie.name)))
-    .map((cookie) => ({
-      name: String(cookie.name),
-      value: boundedString(cookie.value, `${String(cookie.name)} cookie`, 5_000),
-      domain: ".linkedin.com",
-      path: "/",
-    }));
+  const cookies = value.filter((cookie) => cookie && typeof cookie === "object" && allowed.has(String(cookie.name))).map((cookie) => ({
+    name: String(cookie.name), value: boundedString(cookie.value, `${String(cookie.name)} cookie`, 5_000), domain: ".linkedin.com", path: "/",
+  }));
   if (!cookies.some((cookie) => cookie.name === "li_at")) throw new ApiInputError("Missing li_at cookie");
   return cookies;
 }
@@ -96,14 +80,7 @@ export function sanitizeLinkedInCookies(value: unknown): LinkedInCookie[] {
 export function serverProxy(countryValue: unknown): ProxyConfig | undefined {
   if (!process.env.PROXY_HOST || !process.env.PROXY_PORT) return undefined;
   const requested = typeof countryValue === "string" ? countryValue.toLowerCase() : "";
-  const countryCode = ALLOWED_PROXY_COUNTRIES.has(requested) ? requested : undefined;
-  return {
-    host: process.env.PROXY_HOST,
-    port: process.env.PROXY_PORT,
-    username: process.env.PROXY_USER || undefined,
-    password: process.env.PROXY_PASS || undefined,
-    countryCode,
-  };
+  return { host: process.env.PROXY_HOST, port: process.env.PROXY_PORT, username: process.env.PROXY_USER || undefined, password: process.env.PROXY_PASS || undefined, countryCode: ALLOWED_PROXY_COUNTRIES.has(requested) ? requested : undefined };
 }
 
 export function safeError(error: unknown) {
@@ -117,10 +94,5 @@ export function apiError(error: unknown) {
 }
 
 export function sseHeaders() {
-  return {
-    "Content-Type": "text/event-stream; charset=utf-8",
-    "Cache-Control": "no-cache, no-store, must-revalidate",
-    Connection: "keep-alive",
-    "X-Content-Type-Options": "nosniff",
-  };
+  return { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-store, must-revalidate", Connection: "keep-alive", "X-Content-Type-Options": "nosniff" };
 }
