@@ -20,16 +20,18 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: website/package-lock.json
+      - name: Apply deterministic audit fixes
+        run: node scripts/apply-audit-fixes.mjs
       - name: Refresh lockfile
         run: npm install --package-lock-only --ignore-scripts
-      - name: Commit refreshed lockfile
+      - name: Commit generated audit fixes
         working-directory: .
         run: |
-          if ! git diff --quiet -- website/package-lock.json; then
+          if ! git diff --quiet -- website; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add website/package-lock.json
-            git commit -m "chore(website): refresh dependency lockfile [skip ci]"
+            git add website
+            git commit -m "chore(website): apply verified audit fixes [skip ci]"
             git push
           fi
       - run: npm ci
