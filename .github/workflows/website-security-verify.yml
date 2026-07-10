@@ -34,5 +34,7 @@ jobs:
             git commit -m "chore(website): apply verified audit fixes [skip ci]"
             git push
           fi
-      - run: npm ci
-      - run: npm run verify
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Lint, test, and production build
+        run: npm run verify
