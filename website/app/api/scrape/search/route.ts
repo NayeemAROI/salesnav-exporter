@@ -1,70 +1,42 @@
 import { NextRequest } from "next/server";
-import { scrapeSalesNavSearch, LeadResult, CompanyResult } from "@/lib/salesnav-scraper";
-import { LinkedInCookie, ProxyConfig } from "@/lib/linkedin-scraper";
+import { scrapeSalesNavSearch } from "@/lib/salesnav-scraper";
+import { acquireScrapeJob, apiError, assertBodySize, boundedNumber, linkedinUrl, safeError, sanitizeLinkedInCookies, serverProxy, sseHeaders } from "@/lib/api-security";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  let release: (() => void) | undefined;
   try {
+    assertBodySize(req);
     const body = await req.json();
-    const { searchUrl, cookies, maxResults = 100, mode = "leads", proxy, proxyCountry } = body as {
-      searchUrl: string;
-      cookies: LinkedInCookie[];
-      maxResults: number;
-      mode: "leads" | "companies";
-      proxy?: ProxyConfig;
-      proxyCountry?: string;
-    };
-
-    if (!searchUrl) {
-      return Response.json({ error: "No search URL provided" }, { status: 400 });
-    }
-    if (!cookies?.some((c: LinkedInCookie) => c.name === "li_at")) {
-      return Response.json({ error: "Missing li_at cookie" }, { status: 400 });
-    }
-
-    // Validate URL
-    const isLeadSearch = searchUrl.includes("/sales/search/people") || searchUrl.includes("/sales/lists/people");
-    const isCompanySearch = searchUrl.includes("/sales/search/company") || searchUrl.includes("/sales/lists/company");
-    if (!isLeadSearch && !isCompanySearch) {
-      return Response.json(
-        { error: "URL must be a Sales Navigator search or list URL (/sales/search/people or /sales/search/company)" },
-        { status: 400 }
-      );
-    }
-
-    const actualMode = isCompanySearch ? "companies" : "leads";
-    const cappedMax = Math.min(maxResults, 500);
+    const searchUrl = linkedinUrl(body.searchUrl, "sales");
+    const cookies = sanitizeLinkedInCookies(body.cookies);
+    const maxResults = boundedNumber(body.maxResults, 100, 1, 500);
+    const actualMode = new URL(searchUrl).pathname.includes("company") ? "companies" : "leads";
+    const proxy = serverProxy(body.proxyCountry);
+    release = acquireScrapeJob();
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Add country code if provided to the proxy config
-          const finalProxy = proxy || (proxyCountry ? { host: "", port: "", countryCode: proxyCountry } : undefined);
-
-          for await (const progress of scrapeSalesNavSearch(searchUrl, cookies, cappedMax, actualMode, finalProxy)) {
+          for await (const progress of scrapeSalesNavSearch(searchUrl, cookies, maxResults, actualMode, proxy)) {
+            if (req.signal.aborted) break;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(progress)}\n\n`));
           }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Unknown error";
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", message })}\n\n`));
+        } catch (error) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", current: 0, total: maxResults, page: 0, message: safeError(error) })}\n\n`));
         } finally {
-          controller.close();
+          release?.();
+          try { controller.close(); } catch {}
         }
       },
+      cancel() { release?.(); },
     });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return Response.json({ error: message }, { status: 500 });
+    return new Response(stream, { headers: sseHeaders() });
+  } catch (error) {
+    release?.();
+    return apiError(error);
   }
 }
