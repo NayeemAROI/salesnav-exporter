@@ -1,60 +1,43 @@
 import { NextRequest } from "next/server";
 import { scanProfiles } from "@/lib/profile-scanner";
-import { LinkedInCookie, ProxyConfig } from "@/lib/linkedin-scraper";
+import { acquireScrapeJob, apiError, assertBodySize, boundedNumber, linkedinUrl, safeError, sanitizeLinkedInCookies, serverProxy, sseHeaders } from "@/lib/api-security";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  let release: (() => void) | undefined;
   try {
+    assertBodySize(req);
     const body = await req.json();
-    const { urls, cookies, minConnections = 0, minActivityMonths = 3, proxy, proxyCountry } = body as {
-      urls: string[];
-      cookies: LinkedInCookie[];
-      minConnections?: number;
-      minActivityMonths?: number;
-      proxy?: ProxyConfig;
-      proxyCountry?: string;
-    };
-
-    if (!urls || urls.length === 0) {
-      return Response.json({ error: "No URLs provided" }, { status: 400 });
-    }
-    if (!cookies?.some((c: LinkedInCookie) => c.name === "li_at")) {
-      return Response.json({ error: "Missing li_at cookie" }, { status: 400 });
-    }
-
-    const validUrls = urls.map((u: string) => u.trim()).filter((u: string) => u.includes("linkedin.com/in/"));
-    if (validUrls.length === 0) {
-      return Response.json({ error: "No valid LinkedIn profile URLs" }, { status: 400 });
-    }
-
-    const cappedUrls = validUrls.slice(0, 100);
+    if (!Array.isArray(body.urls) || body.urls.length < 1 || body.urls.length > 50) throw new Error("Provide between 1 and 50 profile URLs");
+    const urls = [...new Set(body.urls.map((url: unknown) => linkedinUrl(url, "profile")))];
+    const cookies = sanitizeLinkedInCookies(body.cookies);
+    const minConnections = boundedNumber(body.minConnections, 0, 0, 100_000_000);
+    const minActivityMonths = boundedNumber(body.minActivityMonths, 3, 1, 120);
+    const proxy = serverProxy(body.proxyCountry);
+    release = acquireScrapeJob();
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Add country code if provided to the proxy config
-          const finalProxy = proxy || (proxyCountry ? { host: "", port: "", countryCode: proxyCountry } : undefined);
-
-          for await (const progress of scanProfiles(cappedUrls, cookies, { minConnections, minActivityMonths, proxy: finalProxy })) {
+          for await (const progress of scanProfiles(urls, cookies, { minConnections, minActivityMonths, proxy })) {
+            if (req.signal.aborted) break;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(progress)}\n\n`));
           }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Unknown error";
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", message })}\n\n`));
+        } catch (error) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", current: 0, total: urls.length, message: safeError(error) })}\n\n`));
         } finally {
-          controller.close();
+          release?.();
+          try { controller.close(); } catch {}
         }
       },
+      cancel() { release?.(); },
     });
-
-    return new Response(stream, {
-      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return Response.json({ error: message }, { status: 500 });
+    return new Response(stream, { headers: sseHeaders() });
+  } catch (error) {
+    release?.();
+    return apiError(error);
   }
 }

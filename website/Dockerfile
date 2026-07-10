@@ -1,41 +1,28 @@
 FROM node:20-slim AS builder
-
 WORKDIR /app
-
-# Install ALL dependencies (including devDeps needed for build)
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 COPY package.json package-lock.json* ./
 RUN npm ci
-
-# Copy source and build
 COPY . .
 RUN npm run build
 
-# ── Production image ──
-FROM node:20-slim
-
-# Install Chromium and its dependencies
-RUN apt-get update && apt-get install -y \
-    chromium \
-    fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf \
-    libxss1 libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2 \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+FROM node:20-slim AS runner
+RUN apt-get update && apt-get install -y --no-install-recommends \
+ chromium fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf \
+ libxss1 libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2 \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 1001 nodejs \
+ && useradd --system --uid 1001 --gid nodejs --create-home nextjs
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV NODE_ENV=production
-
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 WORKDIR /app
-
-# Copy only production deps
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
-
-# Copy built app from builder
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.ts ./
-
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+USER nextjs
 EXPOSE 3000
-
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
