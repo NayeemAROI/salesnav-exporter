@@ -28,6 +28,15 @@
     doc.head.appendChild(style);
   }
 
+  function hideFetchWebsiteControl(doc) {
+    const input = doc.getElementById('companyDeepBtn');
+    const item = input?.closest('.scope-item');
+    if (item) item.hidden = true;
+
+    const bar = doc.getElementById('pageScopeBar');
+    if (bar) bar.style.gridTemplateColumns = '1fr';
+  }
+
   function installTabs(doc) {
     const tabList = doc.querySelector('.tabs');
     const tabs = [...doc.querySelectorAll('.tab[data-tab]')];
@@ -172,6 +181,7 @@
     const doc = frame.contentDocument;
     if (!doc) return;
     installStyles(doc);
+    hideFetchWebsiteControl(doc);
     installTabs(doc);
     installToggleLabels(doc);
     installClearHistoryGuard(doc);
