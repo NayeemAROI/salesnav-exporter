@@ -92,6 +92,12 @@
     });
   }
 
+  function installClearHistoryGuard(doc) {
+    const clearHistory = doc.getElementById('clearHistory');
+    if (!clearHistory) return;
+    clearHistory.addEventListener('click', (event) => event.stopPropagation());
+  }
+
   function closeModal(modal) {
     const cancel = modal.querySelector('[id$="CancelBtn"]');
     const okay = modal.querySelector('[id$="OkayBtn"]');
@@ -168,6 +174,7 @@
     installStyles(doc);
     installTabs(doc);
     installToggleLabels(doc);
+    installClearHistoryGuard(doc);
     installModals(doc);
   });
 })();
