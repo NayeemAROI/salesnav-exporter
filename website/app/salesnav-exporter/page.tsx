@@ -44,7 +44,7 @@ const FEATURES = [
   {
     icon: <ShieldCheck size={28} />,
     title: "100% Privacy",
-    desc: "All data stays in your browser. Zero external servers, zero tracking, zero data sharing.",
+    desc: "The Chrome extension processes data locally. The separate web dashboard runs protected scraping jobs on your configured server.",
     color: "#ef4444",
   },
 ];
@@ -95,7 +95,7 @@ const FAQS = [
   },
   {
     q: "Where does my data go?",
-    a: "Nowhere. All processing happens locally in your browser. We don't have servers, analytics, or any external connections. Your data is 100% yours.",
+    a: "The Chrome extension processes exports locally. If you use the protected web dashboard, LinkedIn session cookies are sent to your own configured server for the duration of the scraping request and are not intentionally persisted.",
   },
   {
     q: "Do I need Sales Navigator?",

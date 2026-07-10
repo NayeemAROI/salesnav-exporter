@@ -211,7 +211,7 @@ export default function DashboardClient() {
       setSearchRunning(false);
       abortRef.current = null;
     }
-  }, [cookieSaved, searchUrl, maxResults, liAt, jsessionId]);
+  }, [cookieSaved, searchUrl, maxResults, liAt, jsessionId, proxyCountry]);
 
   // ─── Profile Scanner ───
   const startProfileScan = useCallback(async () => {
@@ -275,7 +275,7 @@ export default function DashboardClient() {
       setProfileRunning(false);
       abortRef.current = null;
     }
-  }, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths]);
+  }, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths, proxyCountry]);
 
   // ─── Maps Scraper ───
   const startMapsSearch = useCallback(async () => {
@@ -367,7 +367,12 @@ export default function DashboardClient() {
   const exportCSV = (data: AnyResult[], filename: string) => {
     if (data.length === 0) return;
     const headers = Object.keys(data[0]);
-    const esc = (v: unknown) => { const s = String(v ?? "").replace(/"/g, '""'); return /[,"\n\r]/.test(s) ? `"${s}"` : s; };
+    const esc = (v: unknown) => {
+      let s = String(v ?? "");
+      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      s = s.replace(/"/g, '""');
+      return /[,"\n\r]/.test(s) ? `"${s}"` : s;
+    };
     const rows = data.map(r => headers.map(h => esc((r as unknown as Record<string, unknown>)[h])).join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
