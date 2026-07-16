@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
+import NextLink from "next/link";
 import {
   Users, ScanLine, Download, Play, Square, Trash2, Cookie,
   CheckCircle2, XCircle, Loader2, Eye, EyeOff, Globe,
@@ -410,13 +411,13 @@ export default function DashboardClient() {
       {/* Header */}
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <div className={styles.logo}>
+          <NextLink href="/salesnav-exporter" className={styles.logo}>
             <div className={styles.logoIcon}>SN</div>
             <div>
               <div className={styles.logoTitle}>SalesNav Exporter</div>
               <div className={styles.logoSub}>Scraping Dashboard</div>
             </div>
-          </div>
+          </NextLink>
           <div className={styles.headerBadge}>
             <div className={`${styles.statusDot} ${isRunning ? styles.active : ""}`} />
             {isRunning ? "Scanning..." : "Ready"}

@@ -9,6 +9,7 @@ import {
   Clock, Filter, BarChart3,
 } from "lucide-react";
 import Image from "next/image";
+import NextLink from "next/link";
 import styles from "./salesnav.module.css";
 
 /* ─── Metadata (export from layout.tsx or head) ─── */
@@ -193,6 +194,9 @@ export default function SalesNavExporterPage() {
             <a href="#docs" className={styles.btnSecondary}>
               <FileSpreadsheet size={18} /> Documentation
             </a>
+            <NextLink href="/dashboard" className={styles.btnGhost}>
+              <Monitor size={18} /> Open Cloud Dashboard
+            </NextLink>
           </div>
           <div className={styles.heroStats}>
             <div><strong>3</strong> Scanners</div>

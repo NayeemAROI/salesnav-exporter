@@ -18,13 +18,13 @@ export const metadata: Metadata = {
     title: "SalesNav Exporter — Free Chrome Extension",
     description: "Extract leads from LinkedIn Sales Navigator in seconds, not hours.",
     type: "website",
-    images: ["/salesnav/og-image.png"],
+    images: ["/salesnav/preview2.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: "SalesNav Exporter",
     description: "Extract leads from LinkedIn Sales Navigator in seconds.",
-    images: ["/salesnav/og-image.png"],
+    images: ["/salesnav/preview2.png"],
   },
 };
 
