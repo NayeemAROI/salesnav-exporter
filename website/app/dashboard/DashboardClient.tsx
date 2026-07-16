@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import NextLink from "next/link";
 import {
   Users, ScanLine, Download, Play, Square, Trash2, Cookie,
   CheckCircle2, XCircle, Loader2, Eye, EyeOff, Globe,
   FileSpreadsheet, FileJson, Search, Building2, Link, MapPin,
+  ListChecks, RefreshCw, Clock, FolderOpen,
 } from "lucide-react";
 import styles from "./dashboard.module.css";
 
@@ -65,6 +66,13 @@ interface MapsResult {
   scrapedAt: string;
 }
 
+interface JobSummary {
+  id: string; type: TabId; status: "queued" | "running" | "done" | "error" | "cancelled";
+  progress: { current: number; total: number; page: number };
+  message: string; resultCount: number; error?: string;
+  createdAt: number; startedAt?: number; finishedAt?: number;
+}
+
 type AnyResult = ProfileResult | LeadResult | CompanyResult | CompanyProfileResult | MapsResult;
 type TabId = "search" | "profile" | "company" | "maps";
 
@@ -117,7 +125,16 @@ export default function DashboardClient() {
   const [progress, setProgress] = useState({ current: 0, total: 0, page: 0 });
   const [statusMessage, setStatusMessage] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
-  const abortRef = useRef<AbortController | null>(null);
+
+  // Background job tracking — one active job id + poll timer per tab, so jobs
+  // keep running server-side even if this tab closes; polling just resumes
+  // watching whichever job is already in flight.
+  const jobIdRefs = useRef<Record<TabId, string | null>>({ search: null, profile: null, company: null, maps: null });
+  const pollTimerRefs = useRef<Record<TabId, ReturnType<typeof setInterval> | null>>({ search: null, profile: null, company: null, maps: null });
+
+  // Jobs panel
+  const [showJobs, setShowJobs] = useState(false);
+  const [jobsList, setJobsList] = useState<JobSummary[]>([]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -161,200 +178,113 @@ export default function DashboardClient() {
     return "leads";
   };
 
-  // ─── Search Scraper ───
-  const startSearch = useCallback(async () => {
-    if (!cookieSaved || !searchUrl.trim()) return;
-
-    const mode = detectMode(searchUrl);
-    setSearchMode(mode);
-    setSearchRunning(true);
-    setSearchResults([]);
+  // ─── Background job runner (shared by all four tabs) ───
+  // Submits a job, gets a jobId back immediately, then polls for progress/results.
+  // The job keeps running on the server regardless of whether this tab stays open.
+  const runJob = useCallback((
+    type: TabId,
+    body: Record<string, unknown>,
+    setRunning: (v: boolean) => void,
+    setResults: (updater: (prev: any[]) => any[]) => void,
+    total: number,
+    startMessage: string,
+  ) => {
+    setRunning(true);
+    setResults(() => []);
     setCurrentPage(1);
-    setProgress({ current: 0, total: maxResults, page: 0 });
-    addLog(`🚀 Starting ${mode} search export (max ${maxResults})`);
+    setProgress({ current: 0, total, page: 0 });
+    addLog(startMessage);
 
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      const res = await fetch("/api/scrape/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ searchUrl, cookies: getCookies(), maxResults, mode, proxyCountry }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        addLog(`❌ ${err.error}`);
-        setSearchRunning(false);
+    (async () => {
+      let jobId: string;
+      try {
+        const res = await fetch("/api/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type, ...body }),
+        });
+        const data = await res.json();
+        if (!res.ok) { addLog(`❌ ${data.error}`); setRunning(false); return; }
+        jobId = data.jobId;
+      } catch (err: unknown) {
+        addLog(`❌ ${err instanceof Error ? err.message : "Unknown error"}`);
+        setRunning(false);
         return;
       }
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) { setSearchRunning(false); return; }
+      jobIdRefs.current[type] = jobId;
+      let seenResults = 0;
+      let lastMessage = "";
 
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
+      const poll = async () => {
+        try {
+          const res = await fetch(`/api/jobs/${jobId}`);
+          if (!res.ok) return;
+          const { job } = await res.json();
+          if (!job) return;
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-            setProgress({ current: event.current, total: event.total, page: event.page || 0 });
-            setStatusMessage(event.message);
-            addLog(event.message);
-            if (event.type === "page_done" && event.data) {
-              setSearchResults(prev => [...prev, ...event.data]);
-            }
-          } catch {}
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") addLog("⏹ Search stopped");
-      else addLog(`❌ ${err instanceof Error ? err.message : "Unknown error"}`);
-    } finally {
-      setSearchRunning(false);
-      abortRef.current = null;
-    }
-  }, [cookieSaved, searchUrl, maxResults, liAt, jsessionId, proxyCountry]);
+          setProgress({ current: job.progress.current, total: job.progress.total || total, page: job.progress.page || 0 });
+          if (job.results.length > seenResults) {
+            const fresh = job.results.slice(seenResults) as AnyResult[];
+            seenResults = job.results.length;
+            setResults((prev) => [...prev, ...fresh]);
+          }
+          if (job.message && job.message !== lastMessage) {
+            lastMessage = job.message;
+            setStatusMessage(job.message);
+            addLog(job.message);
+          }
+
+          if (job.status === "done" || job.status === "error" || job.status === "cancelled") {
+            const timer = pollTimerRefs.current[type];
+            if (timer) clearInterval(timer);
+            pollTimerRefs.current[type] = null;
+            jobIdRefs.current[type] = null;
+            if (job.status === "error") addLog(`❌ ${job.error || "Job failed"}`);
+            else if (job.status === "cancelled") addLog("⏹ Job stopped");
+            else addLog("🎉 Job complete");
+            setRunning(false);
+          }
+        } catch {}
+      };
+
+      pollTimerRefs.current[type] = setInterval(poll, 2000);
+      poll();
+    })();
+  }, [addLog]);
+
+  // ─── Search Scraper ───
+  const startSearch = useCallback(() => {
+    if (!cookieSaved || !searchUrl.trim()) return;
+    const mode = detectMode(searchUrl);
+    setSearchMode(mode);
+    runJob("search", { searchUrl, cookies: getCookies(), maxResults, mode, proxyCountry },
+      setSearchRunning, setSearchResults,
+      maxResults, `🚀 Starting ${mode} search export (max ${maxResults})`);
+  }, [cookieSaved, searchUrl, maxResults, liAt, jsessionId, proxyCountry, runJob]);
 
   // ─── Profile Scanner ───
-  const startProfileScan = useCallback(async () => {
+  const startProfileScan = useCallback(() => {
     if (!cookieSaved) return;
     const urlList = profileUrls.split("\n").map(u => u.trim()).filter(u => u.includes("linkedin.com/in/"));
     if (urlList.length === 0) { addLog("⚠️ No valid URLs"); return; }
-
-    setProfileRunning(true);
-    setProfileResults([]);
-    setCurrentPage(1);
-    setProgress({ current: 0, total: urlList.length, page: 0 });
-    addLog(`🚀 Starting scan of ${urlList.length} profiles`);
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      const res = await fetch("/api/scrape/profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ urls: urlList, cookies: getCookies(), minConnections, minActivityMonths, proxyCountry }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        addLog(`❌ ${err.error}`);
-        setProfileRunning(false);
-        return;
-      }
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) { setProfileRunning(false); return; }
-
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-            setProgress(p => ({ ...p, current: event.current, total: event.total }));
-            setStatusMessage(event.message);
-            addLog(event.message);
-            if (event.type === "result" && event.data) {
-              setProfileResults(prev => [...prev, event.data]);
-            }
-          } catch {}
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") addLog("⏹ Scan stopped");
-      else addLog(`❌ ${err instanceof Error ? err.message : "Unknown error"}`);
-    } finally {
-      setProfileRunning(false);
-      abortRef.current = null;
-    }
-  }, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths, proxyCountry]);
+    runJob("profile", { urls: urlList, cookies: getCookies(), minConnections, minActivityMonths, proxyCountry },
+      setProfileRunning, setProfileResults,
+      urlList.length, `🚀 Starting scan of ${urlList.length} profiles`);
+  }, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths, proxyCountry, runJob]);
 
   // ─── Company Scanner ───
-  const startCompanyScan = useCallback(async () => {
+  const startCompanyScan = useCallback(() => {
     if (!cookieSaved) return;
     const urlList = companyUrls.split("\n").map(u => u.trim()).filter(u => u.includes("linkedin.com/company/"));
     if (urlList.length === 0) { addLog("⚠️ No valid URLs"); return; }
-
-    setCompanyRunning(true);
-    setCompanyResults([]);
-    setCurrentPage(1);
-    setProgress({ current: 0, total: urlList.length, page: 0 });
-    addLog(`🚀 Starting scan of ${urlList.length} companies`);
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      const res = await fetch("/api/scrape/company", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ urls: urlList, cookies: getCookies(), proxyCountry }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        addLog(`❌ ${err.error}`);
-        setCompanyRunning(false);
-        return;
-      }
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) { setCompanyRunning(false); return; }
-
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-            setProgress(p => ({ ...p, current: event.current, total: event.total }));
-            setStatusMessage(event.message);
-            addLog(event.message);
-            if (event.type === "result" && event.data) {
-              setCompanyResults(prev => [...prev, event.data]);
-            }
-          } catch {}
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") addLog("⏹ Scan stopped");
-      else addLog(`❌ ${err instanceof Error ? err.message : "Unknown error"}`);
-    } finally {
-      setCompanyRunning(false);
-      abortRef.current = null;
-    }
-  }, [cookieSaved, companyUrls, liAt, jsessionId, proxyCountry]);
+    runJob("company", { urls: urlList, cookies: getCookies(), proxyCountry },
+      setCompanyRunning, setCompanyResults,
+      urlList.length, `🚀 Starting scan of ${urlList.length} companies`);
+  }, [cookieSaved, companyUrls, liAt, jsessionId, proxyCountry, runJob]);
 
   // ─── Maps Scraper ───
-  const startMapsSearch = useCallback(async () => {
+  const startMapsSearch = useCallback(() => {
     const hasSingle = mapsSearchMode === "single" && searchStringsArray.trim();
     const hasBatch = mapsSearchMode === "batch" && mapsBatchQueries.trim();
     if (!hasSingle && !hasBatch) return;
@@ -363,81 +293,61 @@ export default function DashboardClient() {
       ? mapsBatchQueries.split("\n").map(q => q.trim()).filter(Boolean)
       : [];
 
-    setMapsRunning(true);
-    setMapsResults([]);
-    setCurrentPage(1);
-    setProgress({ current: 0, total: maxCrawledPlacesPerSearch, page: 0 });
-    addLog(`🚀 Starting Google Maps search export (max ${maxCrawledPlacesPerSearch})`);
+    runJob("maps", {
+      searchStringsArray: mapsSearchMode === "single" ? [searchStringsArray] : batchQueries,
+      locationQuery,
+      maxCrawledPlacesPerSearch,
+      scrapePlaceDetailPage,
+      language,
+      categoryFilterWords: categoryFilterWords ? categoryFilterWords.split(",").map(w => w.trim()).filter(Boolean) : [],
+      placeMinimumStars,
+      website: websiteFilter,
+      skipClosedPlaces,
+    }, setMapsRunning, setMapsResults,
+      maxCrawledPlacesPerSearch, `🚀 Starting Google Maps search export (max ${maxCrawledPlacesPerSearch})`);
+  }, [searchStringsArray, locationQuery, maxCrawledPlacesPerSearch, mapsSearchMode, mapsBatchQueries, scrapePlaceDetailPage, language, categoryFilterWords, placeMinimumStars, websiteFilter, skipClosedPlaces, runJob]);
 
-    const controller = new AbortController();
-    abortRef.current = controller;
-
+  // ─── Jobs panel ───
+  const refreshJobs = useCallback(async () => {
     try {
-      const res = await fetch("/api/scrape/maps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          searchStringsArray: mapsSearchMode === "single" ? [searchStringsArray] : batchQueries,
-          locationQuery,
-          maxCrawledPlacesPerSearch,
-          scrapePlaceDetailPage,
-          language,
-          categoryFilterWords: categoryFilterWords ? categoryFilterWords.split(",").map(w => w.trim()).filter(Boolean) : [],
-          placeMinimumStars,
-          website: websiteFilter,
-          skipClosedPlaces,
-        }),
-        signal: controller.signal,
-      });
+      const res = await fetch("/api/jobs");
+      const data = await res.json();
+      setJobsList(data.jobs || []);
+    } catch {}
+  }, []);
 
-      if (!res.ok) {
-        const err = await res.json();
-        addLog(`❌ ${err.error}`);
-        setMapsRunning(false);
-        return;
+  const loadJobIntoView = useCallback(async (summary: JobSummary) => {
+    try {
+      const res = await fetch(`/api/jobs/${summary.id}`);
+      const { job } = await res.json();
+      if (!job) return;
+      setActiveTab(summary.type);
+      setCurrentPage(1);
+      if (summary.type === "search") { setSearchResults(job.results); setSearchMode(job.mode === "companies" ? "companies" : "leads"); }
+      else if (summary.type === "profile") setProfileResults(job.results);
+      else if (summary.type === "company") setCompanyResults(job.results);
+      else setMapsResults(job.results);
+      setProgress({ current: job.progress.current, total: job.progress.total, page: job.progress.page || 0 });
+      setShowJobs(false);
+    } catch {}
+  }, []);
+
+  // Keep the Jobs panel fresh while it's open.
+  useEffect(() => {
+    if (!showJobs) return;
+    const timer = setInterval(refreshJobs, 3000);
+    return () => clearInterval(timer);
+  }, [showJobs, refreshJobs]);
+
+  // Stop any active poll timers if this component ever unmounts — the jobs
+  // themselves keep running server-side regardless.
+  useEffect(() => {
+    return () => {
+      for (const timer of Object.values(pollTimerRefs.current)) {
+        if (timer) clearInterval(timer);
       }
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) { setMapsRunning(false); return; }
-
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-            setProgress({ current: event.current, total: event.total, page: event.page || 0 });
-            setStatusMessage(event.message);
-            addLog(event.message);
-            if (event.type === "page_done" && event.data) {
-              setMapsResults(prev => {
-                const newResults = [...prev];
-                for (const item of event.data) {
-                  if (!newResults.find(r => r.url === item.url)) {
-                    newResults.push(item);
-                  }
-                }
-                return newResults;
-              });
-            }
-          } catch {}
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") addLog("⏹ Search stopped");
-      else addLog(`❌ ${err instanceof Error ? err.message : "Unknown error"}`);
-    } finally {
-      setMapsRunning(false);
-      abortRef.current = null;
-    }
-  }, [searchStringsArray, locationQuery, maxCrawledPlacesPerSearch, mapsSearchMode, mapsBatchQueries, scrapePlaceDetailPage, language, categoryFilterWords, placeMinimumStars, websiteFilter, skipClosedPlaces]);
+    };
+  }, []);
 
   // ─── Export ───
   const exportCSV = (data: AnyResult[], filename: string) => {
@@ -467,7 +377,11 @@ export default function DashboardClient() {
     addLog(`📥 Exported ${data.length} rows as JSON`);
   };
 
-  const stop = () => abortRef.current?.abort();
+  const stop = () => {
+    const jobId = jobIdRefs.current[activeTab];
+    if (!jobId) return;
+    fetch(`/api/jobs/${jobId}`, { method: "DELETE" }).catch(() => {});
+  };
 
   const currentResults = activeTab === "search" ? searchResults : activeTab === "profile" ? profileResults : activeTab === "company" ? companyResults : mapsResults;
 
@@ -501,12 +415,70 @@ export default function DashboardClient() {
               <div className={styles.logoSub}>Scraping Dashboard</div>
             </div>
           </NextLink>
-          <div className={styles.headerBadge}>
-            <div className={`${styles.statusDot} ${isRunning ? styles.active : ""}`} />
-            {isRunning ? "Scanning..." : "Ready"}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              className={styles.btnGhost}
+              onClick={() => { const next = !showJobs; setShowJobs(next); if (next) refreshJobs(); }}
+            >
+              <ListChecks size={16} /> Jobs
+            </button>
+            <div className={styles.headerBadge}>
+              <div className={`${styles.statusDot} ${isRunning ? styles.active : ""}`} />
+              {isRunning ? "Scanning..." : "Ready"}
+            </div>
           </div>
         </div>
       </header>
+
+      {showJobs && (
+        <div className={styles.main} style={{ paddingBottom: 0 }}>
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>
+              <ListChecks size={18} />
+              <span>Jobs</span>
+              <button className={styles.btnGhost} onClick={refreshJobs} style={{ marginLeft: "auto" }}>
+                <RefreshCw size={14} /> Refresh
+              </button>
+            </div>
+            <div className={styles.tableWrap}>
+              {jobsList.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <FolderOpen size={48} strokeWidth={1} />
+                  <p>No jobs yet. Start a scan from any tab — it&apos;ll show up here and keep running even if you close this tab.</p>
+                </div>
+              ) : (
+                <table className={styles.table}>
+                  <thead><tr>
+                    <th>Type</th><th>Status</th><th>Progress</th><th>Results</th><th>Started</th><th></th>
+                  </tr></thead>
+                  <tbody>
+                    {jobsList.map(job => (
+                      <tr key={job.id}>
+                        <td style={{ textTransform: "capitalize" }}>{job.type}</td>
+                        <td>
+                          {job.status === "done" ? <span className={styles.successBadge}><CheckCircle2 size={12} /> Done</span>
+                            : job.status === "error" ? <span className={styles.errorBadge}><XCircle size={12} /> Error</span>
+                            : job.status === "cancelled" ? <span style={{ color: "var(--text-muted)" }}>Cancelled</span>
+                            : job.status === "running" ? <span className={styles.runningText}><Loader2 size={14} className={styles.spin} /> Running</span>
+                            : <span style={{ color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}><Clock size={12} /> Queued</span>}
+                        </td>
+                        <td>{job.progress.total > 0 ? `${job.progress.current}/${job.progress.total}` : "—"}</td>
+                        <td>{job.resultCount}</td>
+                        <td>{new Date(job.createdAt).toLocaleString()}</td>
+                        <td>
+                          <button className={styles.btnGhost} onClick={() => loadJobIntoView(job)} disabled={job.resultCount === 0}>
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className={styles.main}>
         <div className={styles.grid}>

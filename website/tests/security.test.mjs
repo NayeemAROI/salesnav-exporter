@@ -5,14 +5,14 @@ import { readFile } from "node:fs/promises";
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
-test("all scraper routes use the shared security boundary", async () => {
-  for (const route of ["search", "profile", "maps"]) {
-    const source = await read(`app/api/scrape/${route}/route.ts`);
-    assert.match(source, /assertBodySize\(req\)/);
-    assert.match(source, /acquireScrapeJob\(\)/);
-    assert.match(source, /req\.signal\.aborted/);
-    assert.doesNotMatch(source, /body\.proxy\b/);
-  }
+test("the jobs API uses the shared security boundary", async () => {
+  const route = await read("app/api/jobs/route.ts");
+  assert.match(route, /assertBodySize\(req\)/);
+  assert.doesNotMatch(route, /body\.proxy\b/);
+
+  const runner = await read("lib/job-runner.ts");
+  assert.match(runner, /acquireScrapeJob\(\)/);
+  assert.match(runner, /isCancelled/);
 });
 
 test("URL and cookie inputs are strictly allowlisted", async () => {
