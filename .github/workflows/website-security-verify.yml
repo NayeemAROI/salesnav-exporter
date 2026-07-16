@@ -1,11 +1,11 @@
 name: Website security verify
 on:
   push:
-    branches: [fix/website-security-audit]
+    branches: [main]
+    paths: ["website/**", ".github/workflows/website-security-verify.yml"]
+  pull_request:
     paths: ["website/**", ".github/workflows/website-security-verify.yml"]
   workflow_dispatch:
-permissions:
-  contents: write
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -14,26 +14,11 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v4
-        with: { ref: fix/website-security-audit }
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: website/package-lock.json
-      - name: Apply deterministic audit fixes
-        run: node scripts/apply-audit-fixes.mjs
-      - name: Refresh lockfile
-        run: npm install --package-lock-only --ignore-scripts
-      - name: Commit generated audit fixes
-        working-directory: .
-        run: |
-          if ! git diff --quiet -- website; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add website
-            git commit -m "chore(website): apply verified audit fixes [skip ci]"
-            git push
-          fi
       - name: Install locked dependencies
         run: npm ci
       - name: Lint, test, and production build
