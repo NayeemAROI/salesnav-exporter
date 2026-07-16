@@ -1,7 +1,7 @@
 name: Website security verify
 on:
   push:
-    branches: [main]
+    branches: [main, fix/google-maps-scraper-v2]
     paths: ["website/**", ".github/workflows/website-security-verify.yml"]
   pull_request:
     paths: ["website/**", ".github/workflows/website-security-verify.yml"]
