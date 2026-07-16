@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     assertBodySize(req);
     const body = await req.json();
     if (!Array.isArray(body.urls) || body.urls.length < 1 || body.urls.length > 50) throw new ApiInputError("Provide between 1 and 50 company URLs");
-    const urls = [...new Set(body.urls.map((url: unknown) => linkedinUrl(url, "company")))];
+    const urls: string[] = [...new Set((body.urls as unknown[]).map((url): string => linkedinUrl(url, "company")))];
     const cookies = sanitizeLinkedInCookies(body.cookies);
     const proxy = serverProxy(body.proxyCountry);
     release = acquireScrapeJob();

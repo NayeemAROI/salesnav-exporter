@@ -71,9 +71,12 @@ export function googleMapsUrl(value: unknown) {
 export function sanitizeLinkedInCookies(value: unknown): LinkedInCookie[] {
   if (!Array.isArray(value) || value.length > 10) throw new ApiInputError("Invalid cookies");
   const allowed = new Set(["li_at", "JSESSIONID"]);
-  const cookies = value.filter((cookie) => cookie && typeof cookie === "object" && allowed.has(String(cookie.name))).map((cookie) => ({
-    name: String(cookie.name), value: boundedString(cookie.value, `${String(cookie.name)} cookie`, 5_000), domain: ".linkedin.com", path: "/",
-  }));
+  const rawCookies = value as Array<Record<string, unknown>>;
+  const cookies = rawCookies
+    .filter((cookie) => cookie && typeof cookie === "object" && allowed.has(String(cookie.name)))
+    .map((cookie) => ({
+      name: String(cookie.name), value: boundedString(cookie.value, `${String(cookie.name)} cookie`, 5_000), domain: ".linkedin.com", path: "/",
+    }));
   if (!cookies.some((cookie) => cookie.name === "li_at")) throw new ApiInputError("Missing li_at cookie");
   return cookies;
 }

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     assertBodySize(req);
     const body = await req.json();
     if (!Array.isArray(body.urls) || body.urls.length < 1 || body.urls.length > 50) throw new ApiInputError("Provide between 1 and 50 profile URLs");
-    const urls = [...new Set(body.urls.map((url: unknown) => linkedinUrl(url, "profile")))];
+    const urls: string[] = [...new Set((body.urls as unknown[]).map((url): string => linkedinUrl(url, "profile")))];
     const cookies = sanitizeLinkedInCookies(body.cookies);
     const minConnections = boundedNumber(body.minConnections, 0, 0, 100_000_000);
     const minActivityMonths = boundedNumber(body.minActivityMonths, 3, 1, 120);
