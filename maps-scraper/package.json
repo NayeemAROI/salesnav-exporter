@@ -1,0 +1,13 @@
+{
+  "name": "maps-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "puppeteer-core": "24.42.0"
+  }
+}

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Google Maps Collector</title>
+<style>
+:root{--ink:oklch(22% .025 165);--muted:oklch(50% .022 165);--line:oklch(89% .016 165);--paper:oklch(98% .01 165);--surface:oklch(99.5% .005 165);--accent:oklch(48% .11 165);--soft:oklch(93% .045 165);--danger:oklch(52% .16 28)}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:18px 5vw;border-bottom:1px solid var(--line);background:var(--surface)}
+.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:var(--accent);color:#fff;font-weight:800}
+header b{font-size:16px}header small{display:block;color:var(--muted);font-size:12px}
+.state{margin-left:auto;display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:99px;background:var(--soft);color:var(--accent);font-size:12px;font-weight:700}
+.state i{width:7px;height:7px;border-radius:50%;background:currentColor}.state.live i{animation:pulse 1.3s infinite}@keyframes pulse{50%{opacity:.3}}
+main{display:grid;grid-template-columns:340px minmax(0,1fr);min-height:calc(100vh - 75px)}
+aside{padding:26px 5vw 40px;border-right:1px solid var(--line);background:var(--surface)}
+label{display:grid;gap:6px;font-size:12px;font-weight:700;margin:16px 0}
+input,select{width:100%;min-height:44px;border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:0 12px;font:inherit;color:var(--ink)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.check{display:flex;gap:9px;align-items:flex-start;margin:14px 0;font-size:12px;font-weight:700}
+.check input{width:18px;min-height:18px;margin-top:2px;accent-color:var(--accent)}
+.check small{display:block;color:var(--muted);font-weight:400;margin-top:2px}
+button{cursor:pointer;font:inherit}
+.run{width:100%;min-height:48px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:800;margin-top:8px}
+.run:disabled{opacity:.5;cursor:not-allowed}
+.results{padding:26px 5vw 60px;min-width:0}
+.rhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:16px}
+.rhead h2{font-size:20px;margin:0;letter-spacing:-.02em}
+.summary{display:flex;gap:26px}.summary b{display:block;font-size:22px;font-variant-numeric:tabular-nums}.summary span{font-size:11px;color:var(--muted)}
+.export{min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--ink);color:var(--surface);padding:0 16px;font-weight:700}
+.export:disabled{opacity:.4;cursor:not-allowed}
+.bar{height:5px;border-radius:99px;background:var(--soft);overflow:hidden;margin-bottom:16px}.bar span{display:block;height:100%;background:var(--accent);width:0;transition:width .25s ease}
+.msg{font-size:12px;color:var(--muted);margin-bottom:14px;min-height:16px}
+.empty{display:grid;place-items:center;text-align:center;padding:100px 20px;color:var(--muted)}
+.place{display:grid;grid-template-columns:36px 1fr auto;gap:14px;align-items:center;padding:15px 0;border-bottom:1px solid var(--line)}
+.rank{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.place h3{margin:0 0 4px;font-size:15px}
+.place p{margin:0;font-size:12px;color:var(--muted)}
+.meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--muted)}
+.meta a{color:var(--accent);text-decoration:none}
+.rating{color:oklch(55% .12 75);font-weight:800}
+.open{color:var(--accent);font-weight:700}
+.err{padding:11px 13px;border-radius:9px;background:oklch(94% .03 28);color:var(--danger);font-size:13px;margin-bottom:14px}
+@media(max-width:820px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header><span class="logo">M</span><div><b>Google Maps Collector</b><small>Standalone scraper service</small></div><span class="state" id="state"><i></i>Ready</span></header>
+<main>
+  <aside>
+    <label>Business type<input id="query" value="Restaurants" placeholder="Restaurants" /></label>
+    <label>Location<input id="location" value="Dhaka, Bangladesh" placeholder="City, Country" /></label>
+    <div class="two">
+      <label>Max results<input id="limit" type="number" min="1" max="500" value="40" /></label>
+      <label>Min rating<select id="minStars"><option value="0">Any</option><option value="3">3.0+</option><option value="3.5">3.5+</option><option value="4">4.0+</option><option value="4.5">4.5+</option></select></label>
+    </div>
+    <label>Website filter<select id="website"><option value="allPlaces">All places</option><option value="withWebsite">With website</option><option value="withoutWebsite">Without website</option></select></label>
+    <div class="check"><input type="checkbox" id="details" checked /><span>Open place details<small>Slower, adds phone and website</small></span></div>
+    <div class="check"><input type="checkbox" id="skipClosed" checked /><span>Skip closed businesses<small>Exclude temporary and permanent closures</small></span></div>
+    <button class="run" id="run">Collect places</button>
+  </aside>
+  <section class="results">
+    <div class="rhead"><div><h2 id="title">Ready for a search</h2></div><div class="summary"><div><b id="count">0</b><span>places</span></div><div><b id="webs">0</b><span>websites</span></div></div></div>
+    <div class="bar"><span id="fill"></span></div>
+    <div class="msg" id="msg"></div>
+    <div id="err"></div>
+    <div style="margin-bottom:14px"><button class="export" id="export" disabled>Export CSV</button></div>
+    <div id="list"><div class="empty">Choose a business type and location, then collect places.</div></div>
+  </section>
+</main>
+<script>
+const $=(id)=>document.getElementById(id);let rows=[];
+function render(){
+  $("count").textContent=rows.length;$("webs").textContent=rows.filter(r=>r.website).length;
+  $("export").disabled=!rows.length;
+  if(!rows.length){$("list").innerHTML='<div class="empty">No places collected yet.</div>';return}
+  $("list").innerHTML=rows.map((r,i)=>`<article class="place"><span class="rank">${String(i+1).padStart(2,"0")}</span><div><h3>${esc(r.title)}</h3><p>${esc(r.address||"Address unavailable")}</p><div class="meta">${r.categoryName?`<span>${esc(r.categoryName)}</span>`:""}${r.totalScore?`<span class="rating">★ ${r.totalScore} (${r.reviewsCount||0})</span>`:""}${r.phone?`<span>${esc(r.phone)}</span>`:""}${r.website?`<a href="${esc(r.website)}" target="_blank" rel="noreferrer">Website</a>`:""}${!r.permanentlyClosed&&!r.temporarilyClosed?'<span class="open">Open</span>':""}</div></div><a class="meta" href="${esc(r.url)}" target="_blank" rel="noreferrer">Map</a></article>`).join("");
+}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function setState(live,label){$("state").className="state"+(live?" live":"");$("state").innerHTML=`<i></i>${label}`}
+function csv(){
+  if(!rows.length)return;const cols=["title","categoryName","address","city","totalScore","reviewsCount","website","phone","url"];
+  const e=(v)=>{let s=String(v??"");if(/^[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
+  const out=[cols.join(","),...rows.map(r=>cols.map(c=>e(r[c])).join(","))].join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([out],{type:"text/csv"}));a.download=`maps-${Date.now()}.csv`;a.click();URL.revokeObjectURL(a.href);
+}
+$("export").onclick=csv;
+$("run").onclick=async()=>{
+  rows=[];render();$("err").innerHTML="";$("fill").style.width="0";
+  $("run").disabled=true;setState(true,"Collecting");$("title").textContent="Collecting places...";
+  try{
+    const res=await fetch("/api/scrape",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:$("query").value,location:$("location").value,limit:Number($("limit").value)||40,minStars:Number($("minStars").value),website:$("website").value,details:$("details").checked,skipClosed:$("skipClosed").checked})});
+    if(!res.ok){let m="Request failed";try{m=(await res.json()).error||m}catch{}throw new Error(m)}
+    const reader=res.body.getReader();const dec=new TextDecoder();let buf="";
+    for(;;){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const parts=buf.split("\n\n");buf=parts.pop()||"";
+      for(const part of parts){if(!part.startsWith("data: "))continue;let ev;try{ev=JSON.parse(part.slice(6))}catch{continue}
+        if(ev.type==="error"){$("err").innerHTML=`<div class="err">${esc(ev.message)}</div>`;continue}
+        if(ev.message)$("msg").textContent=ev.message;
+        if(ev.total)$("fill").style.width=Math.min(100,Math.round(ev.current/ev.total*100))+"%";
+        if(ev.type==="result"&&ev.data){rows.push(ev.data);render()}
+        if(ev.type==="done"){$("title").textContent=ev.message}
+      }
+    }
+  }catch(err){$("err").innerHTML=`<div class="err">${esc(err.message||"Something went wrong")}</div>`;$("title").textContent="Collection failed"}
+  finally{$("run").disabled=false;setState(false,"Ready")}
+};
+render();
+</script>
+</body>
+</html>
