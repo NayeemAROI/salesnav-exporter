@@ -47,13 +47,14 @@ export function boundedStrings(value: unknown, name: string, maxItems: number, m
   return value.map((item) => boundedString(item, name, maxLength));
 }
 
-export function linkedinUrl(value: unknown, kind: "profile" | "sales") {
+export function linkedinUrl(value: unknown, kind: "profile" | "sales" | "company") {
   const raw = boundedString(value, "URL", 2_000);
   let url: URL;
   try { url = new URL(raw); } catch { throw new ApiInputError("Invalid URL"); }
   if (url.protocol !== "https:" || url.hostname !== "www.linkedin.com") throw new ApiInputError("Only https://www.linkedin.com URLs are allowed");
   if (kind === "profile" && !/^\/in\/[^/]+\/?$/.test(url.pathname)) throw new ApiInputError("Invalid LinkedIn profile URL");
   if (kind === "sales" && ![/^\/sales\/search\/(people|company)/, /^\/sales\/lists\/(people|company|companies|accounts)/].some((rule) => rule.test(url.pathname))) throw new ApiInputError("Invalid Sales Navigator URL");
+  if (kind === "company" && !/^\/company\/[^/]+\/?$/.test(url.pathname)) throw new ApiInputError("Invalid LinkedIn company URL");
   url.username = ""; url.password = ""; url.hash = "";
   return url.toString();
 }

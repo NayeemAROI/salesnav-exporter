@@ -30,6 +30,13 @@ interface CompanyResult {
   industry: string; employees: string;
 }
 
+interface CompanyProfileResult {
+  original_url: string; companyName: string; website: string; industry: string;
+  companySize: string; headquarters: string; founded: string; companyType: string;
+  description: string; specialties: string; linkedinUrl: string;
+  followerCount: string; employeesOnLinkedIn: string; error?: string;
+}
+
 interface Location { lat: number | null; lng: number | null; }
 interface MapsResult {
   title: string;
@@ -58,8 +65,8 @@ interface MapsResult {
   scrapedAt: string;
 }
 
-type AnyResult = ProfileResult | LeadResult | CompanyResult | MapsResult;
-type TabId = "search" | "profile" | "maps";
+type AnyResult = ProfileResult | LeadResult | CompanyResult | CompanyProfileResult | MapsResult;
+type TabId = "search" | "profile" | "company" | "maps";
 
 /* ── Main Dashboard ── */
 export default function DashboardClient() {
@@ -86,6 +93,11 @@ export default function DashboardClient() {
   const [minConnections, setMinConnections] = useState(0);
   const [minActivityMonths, setMinActivityMonths] = useState(3);
 
+  // Company scanner state
+  const [companyUrls, setCompanyUrls] = useState("");
+  const [companyRunning, setCompanyRunning] = useState(false);
+  const [companyResults, setCompanyResults] = useState<CompanyProfileResult[]>([]);
+
   // Maps scanner state
   const [searchStringsArray, setSearchStringsArray] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
@@ -111,7 +123,7 @@ export default function DashboardClient() {
   const [currentPage, setCurrentPage] = useState(1);
   const resultsPerPage = 10;
 
-  const isRunning = searchRunning || profileRunning || mapsRunning;
+  const isRunning = searchRunning || profileRunning || companyRunning || mapsRunning;
 
   const addLog = (msg: string) => {
     setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -277,6 +289,70 @@ export default function DashboardClient() {
     }
   }, [cookieSaved, profileUrls, liAt, jsessionId, minConnections, minActivityMonths, proxyCountry]);
 
+  // ─── Company Scanner ───
+  const startCompanyScan = useCallback(async () => {
+    if (!cookieSaved) return;
+    const urlList = companyUrls.split("\n").map(u => u.trim()).filter(u => u.includes("linkedin.com/company/"));
+    if (urlList.length === 0) { addLog("⚠️ No valid URLs"); return; }
+
+    setCompanyRunning(true);
+    setCompanyResults([]);
+    setCurrentPage(1);
+    setProgress({ current: 0, total: urlList.length, page: 0 });
+    addLog(`🚀 Starting scan of ${urlList.length} companies`);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const res = await fetch("/api/scrape/company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls: urlList, cookies: getCookies(), proxyCountry }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        addLog(`❌ ${err.error}`);
+        setCompanyRunning(false);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) { setCompanyRunning(false); return; }
+
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            setProgress(p => ({ ...p, current: event.current, total: event.total }));
+            setStatusMessage(event.message);
+            addLog(event.message);
+            if (event.type === "result" && event.data) {
+              setCompanyResults(prev => [...prev, event.data]);
+            }
+          } catch {}
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") addLog("⏹ Scan stopped");
+      else addLog(`❌ ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setCompanyRunning(false);
+      abortRef.current = null;
+    }
+  }, [cookieSaved, companyUrls, liAt, jsessionId, proxyCountry]);
+
   // ─── Maps Scraper ───
   const startMapsSearch = useCallback(async () => {
     const hasSingle = mapsSearchMode === "single" && searchStringsArray.trim();
@@ -393,7 +469,7 @@ export default function DashboardClient() {
 
   const stop = () => abortRef.current?.abort();
 
-  const currentResults = activeTab === "search" ? searchResults : activeTab === "profile" ? profileResults : mapsResults;
+  const currentResults = activeTab === "search" ? searchResults : activeTab === "profile" ? profileResults : activeTab === "company" ? companyResults : mapsResults;
 
   // Pagination helpers (must be after currentResults)
   const totalPages = Math.ceil(currentResults.length / resultsPerPage);
@@ -410,6 +486,8 @@ export default function DashboardClient() {
   const inactiveCount = activeTab === "profile" ? profileResults.filter(r => r.status === "inactive").length : 0;
   const mapsOpenNowCount = activeTab === "maps" ? mapsResults.filter(r => !r.permanentlyClosed && !r.temporarilyClosed).length : 0;
   const mapsWithWebsiteCount = activeTab === "maps" ? mapsResults.filter(r => r.website).length : 0;
+  const companyWithWebsiteCount = activeTab === "company" ? companyResults.filter(r => r.website).length : 0;
+  const companyWithIndustryCount = activeTab === "company" ? companyResults.filter(r => r.industry).length : 0;
 
   return (
     <div className={styles.page}>
@@ -441,6 +519,9 @@ export default function DashboardClient() {
               </button>
               <button className={`${styles.tab} ${activeTab === "profile" ? styles.activeTab : ""}`} onClick={() => { setActiveTab("profile"); setCurrentPage(1); }}>
                 <ScanLine size={15} /> Profile Scanner
+              </button>
+              <button className={`${styles.tab} ${activeTab === "company" ? styles.activeTab : ""}`} onClick={() => { setActiveTab("company"); setCurrentPage(1); }}>
+                <Building2 size={15} /> Company Scanner
               </button>
               <button className={`${styles.tab} ${activeTab === "maps" ? styles.activeTab : ""}`} onClick={() => { setActiveTab("maps"); setCurrentPage(1); }}>
                 <MapPin size={15} /> Google Maps
@@ -617,6 +698,45 @@ export default function DashboardClient() {
                 </div>
               </div>
               </>
+            )}
+
+            {/* ── Tab: Company Scanner ── */}
+            {activeTab === "company" && (
+              <div className={styles.card}>
+                <div className={styles.cardHeader}>
+                  <Building2 size={18} />
+                  <span>Company URLs</span>
+                  <span className={styles.countBadge}>
+                    {companyUrls.split("\n").filter(u => u.includes("linkedin.com/company/")).length} valid
+                  </span>
+                </div>
+                <div className={styles.cardBody}>
+                  <textarea className={styles.textarea} rows={6} value={companyUrls}
+                    onChange={e => setCompanyUrls(e.target.value)}
+                    placeholder={"https://www.linkedin.com/company/acme-inc\nhttps://www.linkedin.com/company/globex"}
+                    disabled={isRunning} />
+                  <p className={styles.hint} style={{ marginTop: 12 }}>
+                    Visits each company's About page for website, industry, size, headquarters, founded year, type, and specialties.
+                  </p>
+                  <div className={styles.actionRow}>
+                    {!companyRunning ? (
+                      <button className={styles.btnPrimary} onClick={startCompanyScan}
+                        disabled={!cookieSaved || !companyUrls.trim()}>
+                        <Play size={16} /> Start Scanning
+                      </button>
+                    ) : (
+                      <button className={styles.btnDanger} onClick={stop}>
+                        <Square size={16} /> Stop
+                      </button>
+                    )}
+                    <button className={styles.btnGhost}
+                      onClick={() => { setCompanyUrls(""); setCompanyResults([]); setLogs([]); setCurrentPage(1); setProgress({ current: 0, total: 0, page: 0 }); }}
+                      disabled={isRunning}>
+                      <Trash2 size={16} /> Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* ── Tab: Maps Scraper ── */}
@@ -868,18 +988,18 @@ export default function DashboardClient() {
               </div>
               <div className={styles.statItem}>
                 <div className={styles.statLabel}>
-                  {activeTab === "search" ? "Page" : activeTab === "maps" ? "Open Now" : "Active"}
+                  {activeTab === "search" ? "Page" : activeTab === "maps" ? "Open Now" : activeTab === "company" ? "With Website" : "Active"}
                 </div>
                 <div className={styles.statValue} style={{ color: "#22c55e" }}>
-                  {activeTab === "search" ? progress.page || 0 : activeTab === "maps" ? mapsOpenNowCount : activeCount}
+                  {activeTab === "search" ? progress.page || 0 : activeTab === "maps" ? mapsOpenNowCount : activeTab === "company" ? companyWithWebsiteCount : activeCount}
                 </div>
               </div>
               <div className={styles.statItem}>
                 <div className={styles.statLabel}>
-                  {activeTab === "search" ? "Max" : activeTab === "maps" ? "With Website" : "Inactive"}
+                  {activeTab === "search" ? "Max" : activeTab === "maps" ? "With Website" : activeTab === "company" ? "With Industry" : "Inactive"}
                 </div>
-                <div className={styles.statValue} style={{ color: activeTab === "search" ? "#a855f7" : activeTab === "maps" ? "#3b82f6" : "#ef4444" }}>
-                  {activeTab === "search" ? maxResults : activeTab === "maps" ? mapsWithWebsiteCount : inactiveCount}
+                <div className={styles.statValue} style={{ color: activeTab === "search" ? "#a855f7" : activeTab === "maps" || activeTab === "company" ? "#3b82f6" : "#ef4444" }}>
+                  {activeTab === "search" ? maxResults : activeTab === "maps" ? mapsWithWebsiteCount : activeTab === "company" ? companyWithIndustryCount : inactiveCount}
                 </div>
               </div>
               <div className={styles.statItem}>
@@ -916,15 +1036,41 @@ export default function DashboardClient() {
             {/* Results Table */}
             <div className={styles.card} style={{ flex: 1 }}>
               <div className={styles.cardHeader}>
-                {activeTab === "search" ? <Search size={18} /> : activeTab === "maps" ? <MapPin size={18} /> : <Users size={18} />}
+                {activeTab === "search" ? <Search size={18} /> : activeTab === "maps" ? <MapPin size={18} /> : activeTab === "company" ? <Building2 size={18} /> : <Users size={18} />}
                 <span>Results ({currentResults.length})</span>
               </div>
               <div className={styles.tableWrap}>
                 {currentResults.length === 0 ? (
                   <div className={styles.emptyState}>
                     <ScanLine size={48} strokeWidth={1} />
-                    <p>No results yet. Start a {activeTab === "search" ? "search export" : activeTab === "maps" ? "maps export" : "profile scan"} to see data here.</p>
+                    <p>No results yet. Start a {activeTab === "search" ? "search export" : activeTab === "maps" ? "maps export" : activeTab === "company" ? "company scan" : "profile scan"} to see data here.</p>
                   </div>
+                ) : activeTab === "company" ? (
+                  <table className={styles.table}>
+                    <thead><tr>
+                      <th>#</th><th>Company</th><th>Website</th><th>Industry</th><th>Size</th>
+                      <th>HQ</th><th>Founded</th><th>Type</th><th>Followers</th><th>Employees</th><th>URL</th>
+                    </tr></thead>
+                    <tbody>
+                      {(paginatedResults as CompanyProfileResult[]).map((r, i) => (
+                        <tr key={(currentPage - 1) * resultsPerPage + i} className={r.error ? styles.errorRow : ""}>
+                          <td>{(currentPage - 1) * resultsPerPage + i + 1}</td>
+                          <td className={styles.nameCell}>{r.companyName || "—"}</td>
+                          <td>{r.website || "—"}</td>
+                          <td>{r.industry || "—"}</td>
+                          <td>{r.companySize || "—"}</td>
+                          <td>{r.headquarters || "—"}</td>
+                          <td>{r.founded || "—"}</td>
+                          <td>{r.companyType || "—"}</td>
+                          <td>{r.followerCount || "—"}</td>
+                          <td>{r.employeesOnLinkedIn || "—"}</td>
+                          <td><a href={r.linkedinUrl || r.original_url} target="_blank" rel="noopener noreferrer" className={styles.profileLink}>
+                            <Link size={12} /> Link
+                          </a></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 ) : activeTab === "maps" ? (
                   <table className={styles.table}>
                     <thead><tr>
